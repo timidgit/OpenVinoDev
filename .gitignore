@@ -1,0 +1,113 @@
+# Enhanced Qwen3 OpenVINO GenAI - Git Ignore Rules
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Model Files and Cache
+models/
+*.bin
+*.safetensors
+cache/
+.ovcache*
+*.cache
+temp/
+
+# Logs and Metrics
+*.log
+logs/
+telemetry.jsonl
+
+# System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+*.tmp
+*.temp
+
+# Personal Configuration
+.env.local
+config.local.json
+user_prefs.json
+
+# Sensitive Information
+**/secret*
+**/private*
+**/*secret*
+**/*private*
+*.key
+*.pem
+*.cert
+
+# Large Files (use Git LFS if needed)
+*.onnx
+*.pb
+*.tflite
+*.engine
+
+# Jupyter Notebooks (optional)
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Temporary directories
+tmp/
+temporary/

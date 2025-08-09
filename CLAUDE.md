@@ -1,6 +1,24 @@
-# **CLAUDE.md (Fully Improved)**
+# **CLAUDE.md (Public Repository Edition)**
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. It is optimized with insights from the complete OpenVINO GenAI source and documentation.
+
+## ⚖️ **Public Repository Guidelines**
+
+**IMPORTANT**: This is now a public repository under MIT License with third-party integrations.
+
+### Legal Compliance Requirements
+- **Respect all third-party licenses** (see ACKNOWLEDGMENTS.md for complete list)
+- **No hardcoded proprietary paths** or personal information in commits
+- **Use environment variables** for all configurable paths and settings  
+- **Always include proper attribution** for code derived from external sources
+- **Follow responsible AI practices** in all implementations and documentation
+
+### Code Standards for Public Release
+- **Professional documentation** with clear explanations for community users
+- **Robust error handling** with helpful diagnostic messages
+- **Environment-agnostic code** that works across different setups
+- **Security-conscious practices** for input validation and processing
+- **Clear separation** between original work and third-party integrations
 
 ## **1\. Core Mandate & Primary Directive**
 

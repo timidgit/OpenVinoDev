@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
 """
-Enhanced Qwen Chat - Production-Ready Implementation
-===================================================
-Fully enhanced with comprehensive context patterns:
+Enhanced Qwen3 OpenVINO GenAI Chat Application
+
+Copyright (c) 2025 sbran
+Licensed under the MIT License - see LICENSE file for details
+
+This application integrates with third-party components:
+- OpenVINO GenAI (Apache 2.0, Intel Corporation)
+- Qwen3 models (Apache 2.0 with additional terms, Alibaba Cloud)  
+- Gradio (Apache 2.0, HuggingFace)
+- Transformers (Apache 2.0, HuggingFace)
+
+See ACKNOWLEDGMENTS.md for detailed attributions.
+
+Features:
 - Complete Qwen3-specific NPUW configuration and optimization
 - Proper special token filtering for 26+ Qwen3 tokens
 - Official Gradio streaming and ChatInterface patterns  
@@ -14,6 +25,8 @@ Based on enhanced context from:
 - qwen3_model_context/ (model-specific optimizations)
 - gradio_patterns/ (official Gradio best practices)  
 - gradio_testing/ (professional testing patterns)
+
+This is a hobby/educational project demonstrating OpenVINO GenAI capabilities.
 """
 
 import gradio as gr
@@ -87,9 +100,10 @@ except ImportError as e:
     ENHANCED_CONTEXT_AVAILABLE = False
 
 # --- Constants and Configuration ---
-MODEL_PATH = r"C:\OpenVinoModels\qwen3-8b-int4-cw-ov"
-DEVICE = "NPU"
-CACHE_DIR = r"C:\temp\.ovcache_qwen3_enhanced"
+# Use environment variables for paths to avoid hardcoded local paths
+MODEL_PATH = os.getenv("QWEN3_MODEL_PATH", "./models/qwen3-8b-int4-cw-ov")
+DEVICE = os.getenv("TARGET_DEVICE", "NPU")
+CACHE_DIR = os.getenv("CACHE_DIR", "./cache/.ovcache_qwen3_enhanced")
 
 # Qwen3-optimized settings
 MAX_CONVERSATION_TOKENS = 1800  # Conservative for NPU

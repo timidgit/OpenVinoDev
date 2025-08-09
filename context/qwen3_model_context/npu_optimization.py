@@ -1,6 +1,12 @@
 # Qwen3 NPU Optimization Guide
 # =============================
 #
+# Copyright (c) 2025 sbran
+# Licensed under the MIT License
+# 
+# Based on OpenVINO GenAI patterns and Intel NPU optimization techniques.
+# Integrates knowledge from official OpenVINO documentation and samples.
+#
 # PRIORITY: ⭐⭐⭐⭐⭐ (Critical for NPU deployment)
 #
 # This file contains comprehensive NPU optimization strategies specifically

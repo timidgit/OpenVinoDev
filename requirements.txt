@@ -1,0 +1,32 @@
+# Enhanced Qwen3 OpenVINO GenAI Chat Application
+# Requirements for public repository usage
+
+# Core Dependencies
+openvino-genai>=2024.4.0
+gradio>=4.0.0
+transformers>=4.30.0
+
+# Essential Python Libraries
+numpy>=1.21.0
+typing-extensions>=4.0.0
+
+# Optional Performance Libraries (recommended)
+psutil>=5.8.0  # For system monitoring and resource tracking
+
+# Development Dependencies (optional)
+# Uncomment for development/testing:
+# pytest>=6.0.0
+# pytest-asyncio>=0.18.0
+# black>=22.0.0
+# flake8>=4.0.0
+
+# Note: OpenVINO toolkit should be installed separately following official instructions:
+# https://docs.openvino.ai/latest/openvino_docs_install_guides_overview.html
+#
+# For NPU support, ensure Intel NPU drivers are installed:
+# https://www.intel.com/content/www/us/en/products/docs/processors/core/core-processors-with-intel-npu.html
+#
+# Model Requirements:
+# - Qwen3-8B INT4 model in OpenVINO format
+# - Download from official sources (HuggingFace, ModelScope)
+# - Ensure compliance with model licensing terms

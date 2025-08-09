@@ -1,12 +1,16 @@
 # Qwen3 Special Tokens & Chat Template Guide
 # ==========================================
 #
+# Copyright (c) 2025 sbran
+# Licensed under the MIT License
+#
+# Based on Qwen3 model specifications and tokenizer analysis.
+# Incorporates patterns from official Qwen documentation and examples.
+#
 # PRIORITY: ⭐⭐⭐⭐⭐ (Critical for proper text processing)
 #
 # This file documents all Qwen3 special tokens, chat template format,
 # and proper handling patterns for OpenVINO GenAI applications.
-#
-# Based on analysis of: C:\OpenVinoModels\qwen3-8b-int4-cw-ov\tokenizer_config.json
 
 import re
 from typing import Dict, List, Optional, Union
