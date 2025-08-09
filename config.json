@@ -1,0 +1,45 @@
+{
+  "model": {
+    "path": "./models/qwen3-8b-int4-cw-ov",
+    "name": "Qwen3-8B",
+    "type": "qwen3"
+  },
+  "deployment": {
+    "target_device": "NPU",
+    "npu_profile": "balanced",
+    "fallback_device": "CPU",
+    "cache_directory": "./cache/.ovcache_qwen3"
+  },
+  "generation": {
+    "max_new_tokens": 1024,
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "repetition_penalty": 1.1,
+    "do_sample": true
+  },
+  "ui": {
+    "max_message_length": 400,
+    "max_conversation_tokens": 1800,
+    "emergency_limit": 2048,
+    "show_performance_metrics": true,
+    "theme": "soft"
+  },
+  "performance": {
+    "generation_timeout": 30.0,
+    "truncation_warning_delay": 0.5,
+    "ui_update_interval": 0.1,
+    "thread_pool_size": 2
+  },
+  "logging": {
+    "log_level": "INFO",
+    "enable_performance_logging": true,
+    "enable_token_filtering_logs": false
+  },
+  "security": {
+    "validate_input": true,
+    "max_file_uploads": 0,
+    "allowed_file_types": [],
+    "rate_limit_requests": false
+  }
+}

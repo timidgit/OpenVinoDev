@@ -61,10 +61,22 @@ source /opt/intel/openvino/setupvars.sh  # Linux
 "C:\Program Files (x86)\Intel\openvino\setupvars.bat"  # Windows
 ```
 
-4. **Configure model path**
+4. **Configure the application**
+
+**Option A: Environment Variables**
 ```bash
 export QWEN3_MODEL_PATH="/path/to/your/qwen3-8b-int4-ov"
-# or set in gradio_qwen_enhanced.py
+export TARGET_DEVICE="NPU"  # or "CPU"
+export NPU_PROFILE="balanced"  # conservative, balanced, aggressive
+```
+
+**Option B: Configuration File (Recommended)**
+```bash
+# Copy example configuration
+cp config.example.json config.json
+
+# Edit config.json with your settings
+nano config.json
 ```
 
 5. **Run the application**

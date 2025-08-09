@@ -1,0 +1,85 @@
+{
+  "_comment": "Example configuration for Enhanced Qwen3 OpenVINO GenAI Chat",
+  "_usage": "Copy to config.json and customize as needed",
+  
+  "model": {
+    "path": "./models/qwen3-8b-int4-cw-ov",
+    "name": "Qwen3-8B",
+    "type": "qwen3",
+    "_notes": "Model path should point to OpenVINO model directory with .xml/.bin files"
+  },
+  
+  "deployment": {
+    "target_device": "NPU",
+    "npu_profile": "balanced",
+    "fallback_device": "CPU",
+    "cache_directory": "./cache/.ovcache_qwen3",
+    "_notes": {
+      "target_device": "NPU, CPU, GPU, or AUTO",
+      "npu_profile": "conservative, balanced, or aggressive",
+      "cache_directory": "Directory for OpenVINO compilation cache"
+    }
+  },
+  
+  "generation": {
+    "max_new_tokens": 1024,
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "repetition_penalty": 1.1,
+    "do_sample": true,
+    "_notes": {
+      "temperature": "0.0-2.0, higher = more creative",
+      "top_p": "0.0-1.0, nucleus sampling threshold",
+      "top_k": "1-100, limits vocabulary per step",
+      "max_new_tokens": "Maximum response length (1-2048)"
+    }
+  },
+  
+  "ui": {
+    "max_message_length": 400,
+    "max_conversation_tokens": 1800,
+    "emergency_limit": 2048,
+    "show_performance_metrics": true,
+    "theme": "soft",
+    "_notes": {
+      "max_message_length": "UI limit for single message",
+      "max_conversation_tokens": "NPU memory optimization",
+      "theme": "gradio theme: default, soft, monochrome"
+    }
+  },
+  
+  "performance": {
+    "generation_timeout": 30.0,
+    "truncation_warning_delay": 0.5,
+    "ui_update_interval": 0.1,
+    "_notes": {
+      "generation_timeout": "Seconds before timeout",
+      "truncation_warning_delay": "Pause to show warnings",
+      "ui_update_interval": "UI refresh rate"
+    }
+  },
+  
+  "logging": {
+    "log_level": "INFO",
+    "enable_performance_logging": true,
+    "enable_token_filtering_logs": false,
+    "_notes": {
+      "log_level": "DEBUG, INFO, WARNING, ERROR",
+      "enable_performance_logging": "Log timing and metrics",
+      "enable_token_filtering_logs": "Detailed token processing logs"
+    }
+  },
+  
+  "security": {
+    "validate_input": true,
+    "max_file_uploads": 0,
+    "allowed_file_types": [],
+    "rate_limit_requests": false,
+    "_notes": {
+      "validate_input": "Enable input validation and sanitization",
+      "max_file_uploads": "Maximum simultaneous file uploads",
+      "rate_limit_requests": "Enable request rate limiting"
+    }
+  }
+}

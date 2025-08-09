@@ -64,9 +64,24 @@ import time
 import queue
 import threading
 import json
-from typing import Optional, Dict, Any, List, Tuple, Iterator
+from typing import Optional, Dict, Any, List, Tuple, Iterator, Union, Callable
+from typing_extensions import TypedDict, Literal
 from dataclasses import dataclass, asdict
 from pathlib import Path
+
+# Type definitions for better code clarity
+DeviceType = Literal["NPU", "CPU", "GPU", "AUTO"]
+ProfileType = Literal["conservative", "balanced", "aggressive"]
+ConfigDict = Dict[str, Any]
+ChatMessage = TypedDict('ChatMessage', {'role': str, 'content': str})
+ChatHistory = List[ChatMessage]
+
+# Configuration result type
+class DeploymentResult(TypedDict):
+    pipeline: Any  # ov_genai.LLMPipeline
+    device: str
+    config: str
+    load_time: float
 
 # Import enhanced context patterns
 import sys
@@ -99,17 +114,141 @@ except ImportError as e:
     print("📝 Using fallback patterns - consider updating context path")
     ENHANCED_CONTEXT_AVAILABLE = False
 
-# --- Constants and Configuration ---
-# Use environment variables for paths to avoid hardcoded local paths
-MODEL_PATH = os.getenv("QWEN3_MODEL_PATH", "./models/qwen3-8b-int4-cw-ov")
-DEVICE = os.getenv("TARGET_DEVICE", "NPU")
-CACHE_DIR = os.getenv("CACHE_DIR", "./cache/.ovcache_qwen3_enhanced")
+# --- Configuration System ---
+class ConfigurationLoader:
+    """Load and manage application configuration from multiple sources"""
+    
+    def __init__(self, config_file: str = "config.json") -> None:
+        """
+        Initialize configuration loader.
+        
+        Args:
+            config_file: Path to JSON configuration file
+        """
+        self.config_file = config_file
+        self._config: ConfigDict = {}
+        self.load_configuration()
+    
+    def load_configuration(self) -> None:
+        """Load configuration from file and environment variables"""
+        # Load default configuration
+        self._config = self._get_default_config()
+        
+        # Try to load from file
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    file_config = json.load(f)
+                self._merge_config(file_config)
+                print(f"✅ Loaded configuration from {self.config_file}")
+            else:
+                print(f"📝 Using default configuration (no {self.config_file} found)")
+        except Exception as e:
+            print(f"⚠️ Failed to load {self.config_file}: {e}")
+            print("📝 Using default configuration")
+        
+        # Override with environment variables
+        self._apply_env_overrides()
+    
+    def _get_default_config(self) -> ConfigDict:
+        """Get default configuration values"""
+        return {
+            "model": {
+                "path": "./models/qwen3-8b-int4-cw-ov",
+                "name": "Qwen3-8B",
+                "type": "qwen3"
+            },
+            "deployment": {
+                "target_device": "NPU",
+                "npu_profile": "balanced",
+                "fallback_device": "CPU",
+                "cache_directory": "./cache/.ovcache_qwen3"
+            },
+            "generation": {
+                "max_new_tokens": 1024,
+                "temperature": 0.6,
+                "top_p": 0.95,
+                "top_k": 20,
+                "repetition_penalty": 1.1,
+                "do_sample": True
+            },
+            "ui": {
+                "max_message_length": 400,
+                "max_conversation_tokens": 1800,
+                "emergency_limit": 2048,
+                "show_performance_metrics": True,
+                "theme": "soft"
+            },
+            "performance": {
+                "generation_timeout": 30.0,
+                "truncation_warning_delay": 0.5,
+                "ui_update_interval": 0.1
+            }
+        }
+    
+    def _merge_config(self, new_config: ConfigDict) -> None:
+        """Merge new configuration with existing configuration"""
+        def merge_dict(base: Dict[str, Any], update: Dict[str, Any]) -> None:
+            for key, value in update.items():
+                if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                    merge_dict(base[key], value)
+                else:
+                    base[key] = value
+        
+        merge_dict(self._config, new_config)
+    
+    def _apply_env_overrides(self) -> None:
+        """Apply environment variable overrides"""
+        env_mappings = {
+            "QWEN3_MODEL_PATH": ("model", "path"),
+            "TARGET_DEVICE": ("deployment", "target_device"),
+            "NPU_PROFILE": ("deployment", "npu_profile"),
+            "CACHE_DIR": ("deployment", "cache_directory"),
+            "MAX_MESSAGE_LENGTH": ("ui", "max_message_length"),
+            "GENERATION_TIMEOUT": ("performance", "generation_timeout")
+        }
+        
+        for env_var, (section, key) in env_mappings.items():
+            value = os.getenv(env_var)
+            if value is not None:
+                # Type conversion based on key
+                if key in ["max_message_length"]:
+                    value = int(value)
+                elif key in ["generation_timeout"]:
+                    value = float(value)
+                elif key in ["show_performance_metrics", "do_sample"]:
+                    value = value.lower() in ('true', '1', 'yes', 'on')
+                
+                self._config[section][key] = value
+                print(f"🔧 Environment override: {env_var} = {value}")
+    
+    def get(self, section: str, key: str, default: Any = None) -> Any:
+        """Get configuration value"""
+        return self._config.get(section, {}).get(key, default)
+    
+    def get_section(self, section: str) -> Dict[str, Any]:
+        """Get entire configuration section"""
+        return self._config.get(section, {})
+    
+    @property
+    def config(self) -> ConfigDict:
+        """Get full configuration"""
+        return self._config.copy()
 
-# Qwen3-optimized settings
-MAX_CONVERSATION_TOKENS = 1800  # Conservative for NPU
-EMERGENCY_LIMIT = 2048         # Hard limit before reset
-MAX_MESSAGE_LENGTH = 400       # Slightly increased
-NPU_OPTIMIZATION_PROFILE = "balanced"  # balanced, conservative, aggressive
+# Initialize configuration system
+config = ConfigurationLoader()
+
+# --- Constants and Configuration ---
+# Use configuration system instead of hardcoded values
+MODEL_PATH = config.get("model", "path", "./models/qwen3-8b-int4-cw-ov")
+DEVICE = config.get("deployment", "target_device", "NPU")
+CACHE_DIR = config.get("deployment", "cache_directory", "./cache/.ovcache_qwen3_enhanced")
+
+# Qwen3-optimized settings from configuration
+MAX_CONVERSATION_TOKENS = config.get("ui", "max_conversation_tokens", 1800)
+EMERGENCY_LIMIT = config.get("ui", "emergency_limit", 2048)
+MAX_MESSAGE_LENGTH = config.get("ui", "max_message_length", 400)
+NPU_OPTIMIZATION_PROFILE = config.get("deployment", "npu_profile", "balanced")
 
 @dataclass
 class SystemMetrics:
@@ -167,16 +306,28 @@ You excel at: reasoning, coding, analysis, creative writing, and technical expla
 class Qwen3ConfigurationManager:
     """Advanced configuration management with Qwen3 optimization"""
     
-    def __init__(self, profile: str = "balanced"):
+    def __init__(self, profile: ProfileType = "balanced") -> None:
+        """
+        Initialize configuration manager with specified profile.
+        
+        Args:
+            profile: NPU optimization profile (conservative, balanced, aggressive)
+        """
         self.profile = profile
-        self.config_builder = None
-        self.performance_monitor = Qwen3NPUPerformanceMonitor() if ENHANCED_CONTEXT_AVAILABLE else None
+        self.config_builder: Optional[Any] = None  # Qwen3NPUConfigBuilder if available
+        self.performance_monitor: Optional[Any] = None  # Qwen3NPUPerformanceMonitor if available
         
         if ENHANCED_CONTEXT_AVAILABLE:
             self.config_builder = Qwen3NPUConfigBuilder(profile)
+            self.performance_monitor = Qwen3NPUPerformanceMonitor()
     
-    def get_npu_config(self) -> Dict[str, Any]:
-        """Get complete NPU configuration with NPUW optimization"""
+    def get_npu_config(self) -> ConfigDict:
+        """
+        Get complete NPU configuration with NPUW optimization.
+        
+        Returns:
+            Dictionary containing NPU-specific configuration parameters
+        """
         if ENHANCED_CONTEXT_AVAILABLE and self.config_builder:
             # Use enhanced Qwen3-specific configuration
             return self.config_builder.build_complete_config()
@@ -208,8 +359,13 @@ class Qwen3ConfigurationManager:
             
             return config
     
-    def get_cpu_config(self) -> Dict[str, Any]:
-        """Get optimized CPU configuration"""
+    def get_cpu_config(self) -> ConfigDict:
+        """
+        Get optimized CPU configuration.
+        
+        Returns:
+            Dictionary containing CPU-specific configuration parameters
+        """
         if ENHANCED_CONTEXT_AVAILABLE and self.config_builder:
             return self.config_builder.build_complete_config()
         else:
@@ -237,10 +393,24 @@ class Qwen3ConfigurationManager:
             return config
 
 # --- Enhanced Pipeline Deployment ---
-def deploy_qwen3_pipeline(model_path: str, target_device: str, profile: str = "balanced") -> Tuple[ov_genai.LLMPipeline, str, str, float]:
+def deploy_qwen3_pipeline(
+    model_path: str, 
+    target_device: DeviceType, 
+    profile: ProfileType = "balanced"
+) -> Tuple[Any, str, str, float]:
     """
-    Deploy Qwen3 pipeline with comprehensive error handling and optimization
-    Returns: (pipeline, device_used, config_used, load_time)
+    Deploy Qwen3 pipeline with comprehensive error handling and optimization.
+    
+    Args:
+        model_path: Path to the Qwen3 OpenVINO model directory
+        target_device: Target device for deployment (NPU, CPU, GPU, AUTO)
+        profile: NPU optimization profile
+        
+    Returns:
+        Tuple of (pipeline, device_used, config_used, load_time)
+        
+    Raises:
+        RuntimeError: If all deployment configurations fail
     """
     load_start_time = time.time()
     
@@ -448,36 +618,114 @@ class EnhancedQwen3Streamer(ov_genai.StreamerBase):
         return item
 
 # --- Enhanced Generation Configuration ---
+# --- Security and Validation ---
+class InputValidator:
+    """Security-focused input validation and sanitization"""
+    
+    @staticmethod
+    def validate_message(message: str) -> Tuple[bool, str]:
+        """
+        Validate user message for security and content policy compliance.
+        
+        Args:
+            message: User input to validate
+            
+        Returns:
+            Tuple of (is_valid, reason_if_invalid)
+        """
+        if not message or not isinstance(message, str):
+            return False, "Empty or invalid message"
+        
+        # Check for excessively long messages (security)
+        if len(message) > 10000:  # Much higher than UI limit
+            return False, "Message exceeds maximum length"
+        
+        # Check for potential injection patterns
+        suspicious_patterns = [
+            r'<script[^>]*>',  # Script injection
+            r'javascript:',     # JavaScript URLs
+            r'data:.*base64',   # Data URLs
+            r'eval\s*\(',      # Eval calls
+            r'exec\s*\(',      # Exec calls
+        ]
+        
+        import re
+        for pattern in suspicious_patterns:
+            if re.search(pattern, message, re.IGNORECASE):
+                return False, "Message contains potentially unsafe content"
+        
+        # Check for excessive special characters (potential encoding attacks)
+        special_char_ratio = len([c for c in message if not c.isalnum() and not c.isspace()]) / len(message)
+        if special_char_ratio > 0.5:  # More than 50% special characters
+            return False, "Message contains excessive special characters"
+        
+        return True, ""
+    
+    @staticmethod
+    def sanitize_message(message: str) -> str:
+        """
+        Sanitize user message while preserving readability.
+        
+        Args:
+            message: Raw user input
+            
+        Returns:
+            Sanitized message safe for processing
+        """
+        # Remove null bytes and control characters (except newlines and tabs)
+        sanitized = ''.join(char for char in message if ord(char) >= 32 or char in '\n\t')
+        
+        # Normalize whitespace
+        sanitized = ' '.join(sanitized.split())
+        
+        # Limit consecutive repeated characters (potential DoS protection)
+        import re
+        sanitized = re.sub(r'(.)\1{10,}', r'\1\1\1', sanitized)
+        
+        return sanitized.strip()
+
 def create_qwen3_generation_config() -> ov_genai.GenerationConfig:
-    """Create optimized generation configuration for Qwen3"""
-    config = ov_genai.GenerationConfig()
+    """
+    Create optimized generation configuration for Qwen3 from configuration file.
+    
+    Returns:
+        Configured GenerationConfig with security-conscious defaults
+    """
+    gen_config = ov_genai.GenerationConfig()
+    
+    # Load generation settings from configuration
+    gen_settings = config.get_section("generation")
     
     if ENHANCED_CONTEXT_AVAILABLE:
         # Use Qwen3-specific defaults from context
-        qwen3_config = QWEN3_8B_ARCHITECTURE
-        config.do_sample = True
-        config.temperature = 0.6  # Qwen3 default
-        config.top_p = 0.95       # Qwen3 default  
-        config.top_k = 20         # Qwen3 default
-        config.max_new_tokens = 1024
-        config.repetition_penalty = 1.1
-        # Note: token IDs are handled by tokenizer, not config
+        gen_config.do_sample = gen_settings.get("do_sample", True)
+        gen_config.temperature = min(gen_settings.get("temperature", 0.6), 2.0)  # Security: cap temperature
+        gen_config.top_p = min(gen_settings.get("top_p", 0.95), 1.0)  # Security: cap top_p
+        gen_config.top_k = min(gen_settings.get("top_k", 20), 100)  # Security: reasonable top_k
+        gen_config.max_new_tokens = min(gen_settings.get("max_new_tokens", 1024), 2048)  # Security: limit tokens
+        gen_config.repetition_penalty = max(1.0, min(gen_settings.get("repetition_penalty", 1.1), 2.0))  # Security: reasonable range
     else:
-        # Fallback configuration
-        config.do_sample = True
-        config.temperature = 0.7
-        config.top_p = 0.9
-        config.top_k = 50
-        config.max_new_tokens = 1024
-        config.repetition_penalty = 1.1
+        # Fallback configuration with security limits
+        gen_config.do_sample = gen_settings.get("do_sample", True)
+        gen_config.temperature = min(gen_settings.get("temperature", 0.7), 2.0)
+        gen_config.top_p = min(gen_settings.get("top_p", 0.9), 1.0)
+        gen_config.top_k = min(gen_settings.get("top_k", 50), 100)
+        gen_config.max_new_tokens = min(gen_settings.get("max_new_tokens", 1024), 2048)
+        gen_config.repetition_penalty = max(1.0, min(gen_settings.get("repetition_penalty", 1.1), 2.0))
     
-    return config
+    return gen_config
 
 # --- Smart Message Processing ---
-def process_user_message(message: str, history: List[Dict[str, str]]) -> Tuple[str, bool]:
+def process_user_message(message: str, history: ChatHistory) -> Tuple[str, bool]:
     """
-    Process user message with Qwen3-optimized handling
-    Returns: (processed_message, was_truncated)
+    Process user message with Qwen3-optimized handling.
+    
+    Args:
+        message: Raw user input message
+        history: Current chat conversation history
+        
+    Returns:
+        Tuple of (processed_message, was_truncated)
     """
     original_length = len(message)
     
@@ -510,10 +758,161 @@ def process_user_message(message: str, history: List[Dict[str, str]]) -> Tuple[s
     
     return message, False
 
-# --- Enhanced Chat Function ---
-def enhanced_qwen3_chat(message: str, history: List[Dict[str, str]]):
+# --- Core Chat Processing Functions ---
+def prepare_chat_input(message: str, history: ChatHistory) -> Tuple[str, bool, ChatHistory]:
     """
-    Enhanced chat function with comprehensive Qwen3 optimization
+    Prepare and validate chat input with smart message handling and security validation.
+    
+    Args:
+        message: Raw user input
+        history: Current chat history
+        
+    Returns:
+        Tuple of (processed_message, was_truncated, updated_history)
+        
+    Raises:
+        ValueError: If message fails security validation
+    """
+    # Input validation
+    if not message.strip():
+        return message, False, history
+    
+    # Security validation
+    is_valid, reason = InputValidator.validate_message(message)
+    if not is_valid:
+        error_history = history.copy()
+        error_history.append({
+            "role": "assistant", 
+            "content": f"🚫 Message rejected: {reason}. Please try a different message."
+        })
+        raise ValueError(f"Security validation failed: {reason}")
+    
+    # Sanitize input
+    sanitized_message = InputValidator.sanitize_message(message)
+    
+    # Process message with smart handling
+    processed_message, was_truncated = process_user_message(sanitized_message, history)
+    
+    # Update history with user message and truncation warning if needed
+    updated_history = history.copy()
+    
+    if was_truncated:
+        truncation_warning = {
+            "role": "assistant",
+            "content": f"⚠️ Your message was truncated from {len(message):,} to {len(processed_message)} characters due to NPU memory limits. Processing the truncated version..."
+        }
+        updated_history.append({"role": "user", "content": message})
+        updated_history.append(truncation_warning)
+    else:
+        updated_history.append({"role": "user", "content": processed_message})
+    
+    # Add assistant placeholder
+    updated_history.append({"role": "assistant", "content": ""})
+    
+    return processed_message, was_truncated, updated_history
+
+def execute_generation(processed_message: str, streamer: EnhancedQwen3Streamer) -> bool:
+    """
+    Execute model generation in a controlled manner.
+    
+    Args:
+        processed_message: Message to generate response for
+        streamer: Configured streamer for token processing
+        
+    Returns:
+        True if generation succeeded, False otherwise
+    """
+    try:
+        generation_config = create_qwen3_generation_config()
+        pipe.generate(processed_message, generation_config, streamer)
+        return True
+    except Exception as e:
+        print(f"❌ Generation error: {e}")
+        # Send error through streamer
+        error_msg = f"❌ Generation error: {str(e)[:100]}..."
+        streamer.text_queue.put(error_msg)
+        streamer.text_queue.put(None)
+        return False
+
+def stream_response_to_history(streamer: 'EnhancedQwen3Streamer', history: ChatHistory) -> Iterator[ChatHistory]:
+    """
+    Stream model response tokens to chat history.
+    
+    Args:
+        streamer: Active streamer with generation in progress
+        history: Chat history to update
+        
+    Yields:
+        Updated history with streaming response
+    """
+    try:
+        for chunk in streamer:
+            if chunk:  # Only add non-empty chunks
+                history[-1]["content"] += chunk
+                yield history
+    except Exception as e:
+        print(f"❌ Streaming error: {e}")
+        history[-1]["content"] = f"❌ Streaming error: {str(e)[:100]}..."
+        yield history
+
+def handle_chat_error(error: Exception, history: ChatHistory) -> ChatHistory:
+    """
+    Handle chat errors with user-friendly messages.
+    
+    Args:
+        error: Exception that occurred
+        history: Current chat history
+        
+    Returns:
+        Updated history with error message
+    """
+    print(f"❌ Chat function error: {error}")
+    
+    # Determine error type and provide helpful message
+    error_message = "❌ An error occurred. "
+    error_str = str(error).lower()
+    
+    if "memory" in error_str:
+        error_message += "Memory limit reached. Try starting a new conversation."
+    elif "token" in error_str or "length" in error_str:
+        error_message += "Message too long. Please try a shorter message."
+    elif "compile" in error_str:
+        error_message += "NPU compilation issue. Check NPUW configuration."
+    elif "timeout" in error_str:
+        error_message += "Generation timed out. Try a simpler request."
+    elif "device" in error_str:
+        error_message += "Device error. NPU may not be available."
+    else:
+        error_message += f"Details: {str(error)[:100]}..."
+    
+    # Add error to history
+    updated_history = history.copy()
+    if not updated_history or updated_history[-1]["role"] != "assistant":
+        updated_history.append({"role": "assistant", "content": error_message})
+    else:
+        updated_history[-1]["content"] = error_message
+    
+    return updated_history
+
+# --- Enhanced Chat Function (Refactored) ---
+def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHistory]:
+    """
+    Enhanced chat function with comprehensive Qwen3 optimization.
+    
+    This is the main chat processing function that handles user input,
+    processes it through the Qwen3 model, and streams back the response
+    with comprehensive error handling and performance monitoring.
+    
+    Args:
+        message: User input message to process
+        history: Current chat conversation history
+        
+    Yields:
+        Updated chat history with streaming response as it's generated
+        
+    Note:
+        Uses global system_metrics for performance tracking and
+        requires global pipe and tokenizer to be initialized.
     """
     global system_metrics
     
@@ -521,73 +920,42 @@ def enhanced_qwen3_chat(message: str, history: List[Dict[str, str]]):
     system_metrics.total_requests += 1
     
     try:
-        # Input validation
-        if not message.strip():
-            yield history
+        # Step 1: Prepare and validate input
+        processed_message, was_truncated, updated_history = prepare_chat_input(message, history)
+        
+        # Early return for empty messages
+        if not processed_message.strip():
+            yield updated_history
             return
         
-        # Process message with smart handling
-        processed_message, was_truncated = process_user_message(message, history)
-        
-        # Show truncation warning if needed
+        # Show truncation warning with brief pause
         if was_truncated:
-            truncation_warning = {
-                "role": "assistant",
-                "content": f"⚠️ Your message was truncated from {len(message):,} to {len(processed_message)} characters due to NPU memory limits. Processing the truncated version..."
-            }
-            history.append({"role": "user", "content": message})
-            history.append(truncation_warning)
-            yield history
+            yield updated_history
             time.sleep(0.5)  # Brief pause for user to see warning
         
-        # Add user message to history
-        if not was_truncated:
-            history.append({"role": "user", "content": processed_message})
-        
-        # Add assistant placeholder
-        history.append({"role": "assistant", "content": ""})
-        yield history
-        
-        # Initialize enhanced streamer
+        # Step 2: Initialize streaming components
         streamer = EnhancedQwen3Streamer(tokenizer)
         
-        # Generation configuration
-        generation_config = create_qwen3_generation_config()
-        
-        # Generate response using proper session management
-        def generate_with_session():
-            try:
-                # Use stateful generation - only send new message
-                pipe.generate(processed_message, generation_config, streamer)
+        # Step 3: Execute generation in separate thread
+        def generation_worker():
+            success = execute_generation(processed_message, streamer)
+            if success:
                 system_metrics.successful_requests += 1
-            except Exception as e:
-                print(f"❌ Generation error: {e}")
+            else:
                 system_metrics.failed_requests += 1
-                # Send error to streamer
-                streamer.text_queue.put(f"❌ Generation error: {str(e)[:100]}...")
-                streamer.text_queue.put(None)
         
-        # Run generation in thread
-        generation_thread = threading.Thread(target=generate_with_session)
+        generation_thread = threading.Thread(target=generation_worker, daemon=True)
         generation_thread.start()
         
-        # Stream response to UI
-        try:
-            for chunk in streamer:
-                if chunk:  # Only add non-empty chunks
-                    history[-1]["content"] += chunk
-                    yield history
-        except Exception as e:
-            print(f"❌ Streaming error: {e}")
-            history[-1]["content"] = f"❌ Streaming error: {str(e)[:100]}..."
-            yield history
+        # Step 4: Stream response to UI
+        yield from stream_response_to_history(streamer, updated_history)
         
-        # Wait for generation to complete
+        # Step 5: Wait for generation completion with timeout
         generation_thread.join(timeout=30.0)
         if generation_thread.is_alive():
             print("⚠️ Generation timeout - thread still running")
         
-        # Update performance metrics
+        # Step 6: Update performance metrics
         elapsed_time = time.time() - request_start_time
         system_metrics.avg_response_time = (
             (system_metrics.avg_response_time * (system_metrics.total_requests - 1) + elapsed_time)
@@ -597,28 +965,9 @@ def enhanced_qwen3_chat(message: str, history: List[Dict[str, str]]):
         print(f"📊 Request complete: {elapsed_time:.2f}s total")
         
     except Exception as e:
-        print(f"❌ Chat function error: {e}")
         system_metrics.failed_requests += 1
-        
-        # Determine error type and provide helpful message
-        error_message = "❌ An error occurred. "
-        
-        if "memory" in str(e).lower():
-            error_message += "Memory limit reached. Try starting a new conversation."
-        elif "token" in str(e).lower() or "length" in str(e).lower():
-            error_message += "Message too long. Please try a shorter message."
-        elif "compile" in str(e).lower():
-            error_message += "NPU compilation issue. Check NPUW configuration."
-        else:
-            error_message += f"Details: {str(e)[:100]}..."
-        
-        # Add error to history
-        if not history or history[-1]["role"] != "assistant":
-            history.append({"role": "assistant", "content": error_message})
-        else:
-            history[-1]["content"] = error_message
-        
-        yield history
+        error_history = handle_chat_error(e, history)
+        yield error_history
 
 # --- System Initialization ---
 print("🚀 Initializing Enhanced Qwen3 Chat System")
@@ -627,42 +976,145 @@ print(f"🎯 Target Device: {DEVICE}")
 print(f"📊 Optimization Profile: {NPU_OPTIMIZATION_PROFILE}")
 print(f"🔧 Enhanced Context: {'Available' if ENHANCED_CONTEXT_AVAILABLE else 'Fallback Mode'}")
 
+def validate_system_requirements() -> List[str]:
+    """Validate system requirements and return list of issues."""
+    issues = []
+    
+    # Check model path
+    if not os.path.exists(MODEL_PATH):
+        issues.append(f"Model path does not exist: {MODEL_PATH}")
+    elif not os.path.isdir(MODEL_PATH):
+        issues.append(f"Model path is not a directory: {MODEL_PATH}")
+    else:
+        # Check for required OpenVINO files
+        required_files = ['openvino_model.xml', 'openvino_model.bin']
+        for file_name in required_files:
+            if not os.path.exists(os.path.join(MODEL_PATH, file_name)):
+                issues.append(f"Missing OpenVINO model file: {file_name}")
+    
+    # Check cache directory
+    cache_dir = os.path.dirname(CACHE_DIR)
+    if not os.path.exists(cache_dir):
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+        except PermissionError:
+            issues.append(f"Cannot create cache directory: {cache_dir} (permission denied)")
+        except Exception as e:
+            issues.append(f"Cannot create cache directory: {cache_dir} ({str(e)})")
+    
+    # Check OpenVINO installation
+    try:
+        import openvino as ov
+        core = ov.Core()
+        available_devices = core.available_devices
+        if DEVICE not in available_devices and DEVICE != "AUTO":
+            issues.append(f"Target device '{DEVICE}' not available. Available: {available_devices}")
+    except Exception as e:
+        issues.append(f"OpenVINO not properly installed: {str(e)}")
+    
+    return issues
+
+def initialize_system_with_validation():
+    """Initialize system with comprehensive validation and error handling."""
+    global pipe, tokenizer, system_metrics
+    
+    print("🔍 Validating system requirements...")
+    issues = validate_system_requirements()
+    
+    if issues:
+        print("❌ System validation failed:")
+        for i, issue in enumerate(issues, 1):
+            print(f"   {i}. {issue}")
+        print("\n🔧 Suggested fixes:")
+        print("   • Set QWEN3_MODEL_PATH environment variable to correct model location")
+        print("   • Install OpenVINO with: pip install openvino")
+        print("   • For NPU: Install Intel NPU drivers from official site")
+        print("   • Ensure model is in OpenVINO format (.xml/.bin files)")
+        raise SystemExit(1)
+    
+    try:
+        print("🚀 Initializing Enhanced Qwen3 Chat System...")
+        
+        # Deploy pipeline with comprehensive error handling
+        pipe, device_used, config_used, load_time = deploy_qwen3_pipeline(
+            MODEL_PATH, DEVICE, NPU_OPTIMIZATION_PROFILE
+        )
+        
+        # Update system metrics
+        system_metrics.device_used = device_used
+        system_metrics.config_used = config_used
+        system_metrics.model_load_time = load_time
+        
+        # Initialize tokenizer with error handling
+        print("📚 Loading Qwen3 tokenizer...")
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+            
+            # Configure tokenizer for Qwen3
+            if not hasattr(tokenizer, 'pad_token_id') or tokenizer.pad_token_id is None:
+                tokenizer.pad_token_id = tokenizer.eos_token_id
+                
+        except Exception as tokenizer_error:
+            print(f"⚠️ Tokenizer loading failed: {tokenizer_error}")
+            print("🔄 Attempting fallback tokenizer initialization...")
+            try:
+                # Fallback: try without trust_remote_code
+                tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=False)
+                if not hasattr(tokenizer, 'pad_token_id') or tokenizer.pad_token_id is None:
+                    tokenizer.pad_token_id = tokenizer.eos_token_id
+                print("✅ Fallback tokenizer loaded successfully")
+            except Exception as fallback_error:
+                print(f"❌ Fallback tokenizer also failed: {fallback_error}")
+                raise RuntimeError("Unable to initialize tokenizer with any method") from fallback_error
+        
+        print(f"✅ System Ready!")
+        print(f"   Device: {device_used}")
+        print(f"   Config: {config_used}")
+        print(f"   Load Time: {load_time:.1f}s")
+        print(f"   Model Path: {MODEL_PATH}")
+        print(f"   Tokenizer: {tokenizer.__class__.__name__}")
+        if ENHANCED_CONTEXT_AVAILABLE:
+            print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} Qwen3 tokens loaded")
+        print("=" * 60)
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ System initialization failed: {e}")
+        print("\n🔧 Detailed diagnostics:")
+        print(f"   Model Path: {MODEL_PATH}")
+        print(f"   Target Device: {DEVICE}")
+        print(f"   Cache Directory: {CACHE_DIR}")
+        print(f"   Enhanced Context: {ENHANCED_CONTEXT_AVAILABLE}")
+        
+        # Provide specific guidance based on error type
+        error_str = str(e).lower()
+        if "compile" in error_str:
+            print("\n💡 NPU Compilation Error - Try:")
+            print("   • Verify NPU drivers are installed")
+            print("   • Check NPUW configuration compatibility")
+            print("   • Try CPU fallback with: export TARGET_DEVICE=CPU")
+        elif "file" in error_str or "path" in error_str:
+            print("\n💡 File/Path Error - Try:")
+            print("   • Verify model path contains .xml and .bin files")
+            print("   • Check file permissions and access rights")
+        elif "memory" in error_str:
+            print("\n💡 Memory Error - Try:")
+            print("   • Use conservative NPU profile")
+            print("   • Ensure sufficient system RAM")
+            print("   • Close other applications")
+        
+        raise SystemExit(1)
+
+# Initialize system with enhanced error handling
 try:
-    # Deploy pipeline with comprehensive error handling
-    pipe, device_used, config_used, load_time = deploy_qwen3_pipeline(
-        MODEL_PATH, DEVICE, NPU_OPTIMIZATION_PROFILE
-    )
-    
-    # Update system metrics
-    system_metrics.device_used = device_used
-    system_metrics.config_used = config_used
-    system_metrics.model_load_time = load_time
-    
-    # Initialize tokenizer
-    print("📚 Loading Qwen3 tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
-    
-    # Configure tokenizer for Qwen3
-    if not hasattr(tokenizer, 'pad_token_id') or tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-    
-    print(f"✅ System Ready!")
-    print(f"   Device: {device_used}")
-    print(f"   Config: {config_used}")
-    print(f"   Load Time: {load_time:.1f}s")
-    print(f"   Tokenizer: {tokenizer.__class__.__name__}")
-    if ENHANCED_CONTEXT_AVAILABLE:
-        print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} Qwen3 tokens loaded")
-    print("=" * 60)
-    
-except Exception as e:
-    print(f"❌ System initialization failed: {e}")
-    print("🔧 Check:")
-    print("  1. Model path exists and contains OpenVINO model files")
-    print("  2. NPU drivers are installed and working")
-    print("  3. OpenVINO environment is properly configured")
-    print("  4. NPUW configuration is compatible")
-    exit(1)
+    initialize_system_with_validation()
+except SystemExit:
+    raise
+except Exception as unexpected_error:
+    print(f"💥 Unexpected initialization error: {unexpected_error}")
+    print("🆘 This may be a bug - please report with full error details")
+    raise
 
 # --- Enhanced Gradio Interface ---
 def create_enhanced_interface():
@@ -942,14 +1394,26 @@ if __name__ == "__main__":
     
     demo = create_enhanced_interface()
     
+    # Security-conscious launch configuration
+    launch_config = {
+        "share": False,  # Security: Never share publicly by default
+        "server_name": "127.0.0.1",  # Security: Bind to localhost only
+        "server_port": 7860,
+        "show_error": True,
+        "show_tips": True,
+        "quiet": False,
+        "auth": None,  # No authentication by default (add if needed)
+        "max_file_size": "10mb",  # Limit file upload size
+        "allowed_paths": []  # No file access by default
+    }
+    
+    # Security warning if share is enabled via environment
+    if os.getenv("GRADIO_SHARE", "").lower() in ('true', '1', 'yes'):
+        print("⚠️ WARNING: Public sharing enabled via GRADIO_SHARE environment variable")
+        print("🔒 Ensure your system is secure and consider adding authentication")
+        launch_config["share"] = True
+    
     demo.queue(
         max_size=20,
         default_concurrency_limit=1  # NPU works best with single concurrent requests
-    ).launch(
-        share=False,
-        server_name="127.0.0.1",
-        server_port=7860,
-        show_error=True,
-        show_tips=True,
-        quiet=False
-    )
+    ).launch(**launch_config)
