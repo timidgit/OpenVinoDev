@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.openvino.ai)",
+      "Bash(python:*)",
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)"
+    ],
+    "deny": []
+  }
+}

@@ -1,0 +1,1 @@
+https://github.com/openvinotoolkit/openvino.genai/tree/master
