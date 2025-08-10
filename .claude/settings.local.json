@@ -11,7 +11,11 @@
       "Bash(mkdir:*)",
       "Bash(move gradio_qwen_debug.py gradio_qwen_hybrid.py gradio_qwen_optimized.py gradio_qwen_refined.py archive)",
       "Bash(mv:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(set QWEN3_MODEL_PATH=C:OpenVinoModelsphi3-128k-npu)",
+      "Bash(set MODEL_PATH=C:OpenVinoModelsphi3-128k-npu)",
+      "Bash(set QWEN3_MODEL_PATH=)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }
