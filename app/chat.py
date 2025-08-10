@@ -253,7 +253,7 @@ tokenizer = None
 
 def create_qwen3_generation_config() -> ov_genai.GenerationConfig:
     """
-    Create optimized generation configuration for Qwen3 from configuration file.
+    Create optimized generation configuration for Phi-3 from configuration file.
     
     Returns:
         Configured GenerationConfig with security-conscious defaults
@@ -459,10 +459,10 @@ def handle_chat_error(error: Exception, history: ChatHistory) -> ChatHistory:
 
 def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHistory]:
     """
-    Enhanced chat function with comprehensive Qwen3 optimization and RAG support.
+    Enhanced chat function with comprehensive Phi-3 optimization and RAG support.
     
     This is the main chat processing function that handles user input,
-    processes it through the Qwen3 model with optional document context,
+    processes it through the Phi-3 model with optional document context,
     and streams back the response with comprehensive error handling and performance monitoring.
     
     Args:

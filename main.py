@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Enhanced Qwen3 OpenVINO GenAI Chat Application
+Enhanced Phi-3 OpenVINO GenAI Chat Application
 ==============================================
 
-Main entry point for the modular, production-ready implementation of Qwen3-8B 
+Main entry point for the modular, production-ready implementation of Phi-3-mini-128k-instruct
 chat interface using OpenVINO GenAI with Intel NPU optimization and RAG capabilities.
 
 Copyright (c) 2025 sbran
@@ -16,7 +16,7 @@ Usage:
     python main.py --help                   # Show all options
 
 Features:
-- Complete Qwen3 NPUW optimization
+- Complete Phi-3 NPUW optimization with 128k context support
 - Dynamic system prompt configuration
 - RAG document processing
 - Professional performance monitoring  
@@ -45,7 +45,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         Configured ArgumentParser instance
     """
     parser = argparse.ArgumentParser(
-        description="Enhanced Qwen3 OpenVINO GenAI Chat Application",
+        description="Enhanced Phi-3 OpenVINO GenAI Chat Application",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -261,7 +261,7 @@ def main():
         import logging
         logging.basicConfig(level=logging.DEBUG)
     
-    print("🚀 Starting Enhanced Qwen3 Chat Application")
+    print("🚀 Starting Enhanced Phi-3 Chat Application")
     print("=" * 60)
     
     try:
@@ -305,7 +305,7 @@ def main():
         launch_config = setup_launch_config(args)
         
         # Display startup information
-        print("✨ Enhanced Qwen3 Chat System Ready!")
+        print("✨ Enhanced Phi-3 Chat System Ready!")
         print("=" * 60)
         print("Features Enabled:")
         print("   🎯 Dynamic System Prompts")

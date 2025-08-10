@@ -1,17 +1,17 @@
 {
   "model": {
-    "path": "./models/qwen3-8b-int4-cw-ov",
-    "name": "Qwen3-8B",
-    "type": "qwen3"
+    "path": "C:\\OpenVinoModels\\phi3-128k-npu",
+    "name": "Phi-3-mini-128k-instruct",
+    "type": "phi3"
   },
   "deployment": {
     "target_device": "NPU",
     "npu_profile": "balanced",
     "fallback_device": "CPU",
-    "cache_directory": "./cache/.ovcache_qwen3"
+    "cache_directory": "./cache/.ovcache_phi3"
   },
   "generation": {
-    "max_new_tokens": 1024,
+    "max_new_tokens": 2048,
     "temperature": 0.6,
     "top_p": 0.95,
     "top_k": 20,
@@ -19,9 +19,9 @@
     "do_sample": true
   },
   "ui": {
-    "max_message_length": 400,
-    "max_conversation_tokens": 1800,
-    "emergency_limit": 2048,
+    "max_message_length": 2000,
+    "max_conversation_tokens": 8000,
+    "emergency_limit": 16384,
     "show_performance_metrics": true,
     "theme": "soft"
   },

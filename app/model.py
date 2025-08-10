@@ -76,7 +76,7 @@ ConfigDict = dict[str, Any]
 
 
 class Qwen3ConfigurationManager:
-    """Advanced configuration management with Qwen3 optimization"""
+    """Advanced configuration management with model-specific optimization (Phi-3 compatible)"""
     
     def __init__(self, profile: ProfileType = "balanced") -> None:
         """
@@ -102,14 +102,14 @@ class Qwen3ConfigurationManager:
             # Use enhanced Qwen3-specific configuration
             return self.config_builder.build_complete_config()
         else:
-            # Fallback configuration with compatibility handling
+            # Fallback configuration optimized for Phi-3 128k context
             config = {
                 "NPU_USE_NPUW": "YES",
                 "NPUW_LLM": "YES", 
                 "NPUW_LLM_BATCH_DIM": 0,
                 "NPUW_LLM_SEQ_LEN_DIM": 1,
-                "NPUW_LLM_MAX_PROMPT_LEN": 2048,
-                "NPUW_LLM_MIN_RESPONSE_LEN": 256,
+                "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
+                "NPUW_LLM_MIN_RESPONSE_LEN": 512,  # Increased for better responses
                 "CACHE_MODE": "OPTIMIZE_SPEED",
                 "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
                 "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE"
@@ -117,7 +117,7 @@ class Qwen3ConfigurationManager:
             
             # Add OpenVINO properties if available
             if OPENVINO_PROPERTIES_AVAILABLE:
-                cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_qwen3")
+                cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3")
                 config.update({
                     hints.performance_mode: hints.PerformanceMode.LATENCY,
                     props.cache_dir: cache_dir
@@ -125,7 +125,7 @@ class Qwen3ConfigurationManager:
             else:
                 config.update({
                     "PERFORMANCE_HINT": "LATENCY",
-                    "CACHE_DIR": get_config().get("deployment", "cache_directory", "./cache/.ovcache_qwen3")
+                    "CACHE_DIR": get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3")
                 })
             
             return config
@@ -141,13 +141,13 @@ class Qwen3ConfigurationManager:
             return self.config_builder.build_complete_config()
         else:
             config = {
-                "MAX_PROMPT_LEN": 4096,  # Larger context on CPU
+                "MAX_PROMPT_LEN": 16384,  # Much larger context for Phi-3 on CPU
                 "MIN_RESPONSE_LEN": 512
             }
             
             # Add OpenVINO properties if available
             if OPENVINO_PROPERTIES_AVAILABLE:
-                cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_qwen3") + "_cpu"
+                cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3") + "_cpu"
                 config.update({
                     hints.performance_mode: hints.PerformanceMode.THROUGHPUT,
                     props.cache_dir: cache_dir,
@@ -157,7 +157,7 @@ class Qwen3ConfigurationManager:
             else:
                 config.update({
                     "PERFORMANCE_HINT": "THROUGHPUT",
-                    "CACHE_DIR": get_config().get("deployment", "cache_directory", "./cache/.ovcache_qwen3") + "_cpu",
+                    "CACHE_DIR": get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3") + "_cpu",
                     "NUM_STREAMS": 2,
                     "INFERENCE_NUM_THREADS": 0  # Auto-detect
                 })
@@ -171,10 +171,10 @@ def deploy_qwen3_pipeline(
     profile: ProfileType = "balanced"
 ) -> Tuple[Any, str, str, float]:
     """
-    Deploy Qwen3 pipeline with comprehensive error handling and optimization.
+    Deploy language model pipeline (Phi-3) with comprehensive error handling and optimization.
     
     Args:
-        model_path: Path to the Qwen3 OpenVINO model directory
+        model_path: Path to the Phi-3 OpenVINO model directory
         target_device: Target device for deployment (NPU, CPU, GPU, AUTO)
         profile: NPU optimization profile
         
@@ -187,9 +187,9 @@ def deploy_qwen3_pipeline(
     load_start_time = time.time()
     
     if ENHANCED_CONTEXT_AVAILABLE:
-        print(f"🚀 Deploying Qwen3 with enhanced context (profile: {profile})")
+        print(f"🚀 Deploying Phi-3 with enhanced context (profile: {profile})")
         
-        # Use enhanced deployment
+        # Use enhanced deployment (Qwen3 context used for NPU optimization patterns)
         deployment = Qwen3NPUDeployment(model_path, profile)
         pipeline = deployment.deploy()
         
@@ -207,7 +207,7 @@ def deploy_qwen3_pipeline(
     configurations = []
     
     # Create basic configurations with compatibility handling
-    cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_qwen3")
+    cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3")
     
     if OPENVINO_PROPERTIES_AVAILABLE:
         basic_npu_config = {hints.performance_mode: hints.PerformanceMode.LATENCY, props.cache_dir: cache_dir}
@@ -318,7 +318,7 @@ def initialize_system_with_validation():
         raise SystemExit(1)
     
     try:
-        print("🚀 Initializing Enhanced Qwen3 Chat System...")
+        print("🚀 Initializing Enhanced Phi-3 Chat System...")
         
         # Get configuration values
         model_path = config.get("model", "path")
@@ -336,11 +336,11 @@ def initialize_system_with_validation():
         )
         
         # Initialize tokenizer with error handling
-        print("📚 Loading Qwen3 tokenizer...")
+        print("📚 Loading Phi-3 tokenizer...")
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
             
-            # Configure tokenizer for Qwen3
+            # Configure tokenizer for Phi-3
             if not hasattr(tokenizer, 'pad_token_id') or tokenizer.pad_token_id is None:
                 tokenizer.pad_token_id = tokenizer.eos_token_id
                 
@@ -365,7 +365,7 @@ def initialize_system_with_validation():
         print(f"   Tokenizer: {tokenizer.__class__.__name__}")
         if ENHANCED_CONTEXT_AVAILABLE:
             from qwen3_model_context.special_tokens import QWEN3_SPECIAL_TOKENS
-            print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} Qwen3 tokens loaded")
+            print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} special tokens available (legacy context)")
         print("=" * 60)
         
         return pipeline, tokenizer, device_used, config_used, load_time

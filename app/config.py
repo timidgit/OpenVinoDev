@@ -101,7 +101,8 @@ class ConfigurationLoader:
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides"""
         env_mappings = {
-            "QWEN3_MODEL_PATH": ("model", "path"),
+            "QWEN3_MODEL_PATH": ("model", "path"),  # Backward compatibility
+            "MODEL_PATH": ("model", "path"),        # Generic name for any model
             "TARGET_DEVICE": ("deployment", "target_device"),
             "NPU_PROFILE": ("deployment", "npu_profile"),
             "CACHE_DIR": ("deployment", "cache_directory"),

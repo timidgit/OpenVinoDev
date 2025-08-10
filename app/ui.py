@@ -32,7 +32,7 @@ except ImportError:
 
 
 # System prompt management
-DEFAULT_SYSTEM_PROMPT = """You are a helpful, concise AI assistant powered by Qwen3-8B running on Intel NPU via OpenVINO GenAI. 
+DEFAULT_SYSTEM_PROMPT = """You are a helpful, concise AI assistant powered by Phi-3-mini-128k-instruct running on Intel NPU via OpenVINO GenAI. 
 
 Key behaviors:
 - Provide accurate, well-structured responses
@@ -90,7 +90,7 @@ def create_enhanced_interface():
             secondary_hue="gray",
             neutral_hue="slate"
         ),
-        title="Enhanced Qwen3 Chat",
+        title="Enhanced Phi-3 Chat",
         css=custom_css,
     ) as demo:
         
@@ -98,7 +98,7 @@ def create_enhanced_interface():
         with gr.Row():
             with gr.Column(scale=3):
                 gr.Markdown(f"""
-                # 🤖 Enhanced Qwen3 Chat System
+                # 🤖 Enhanced Phi-3 Chat System
                 
                 **Production-Ready Implementation with Complete Optimization**
                 """)
@@ -106,7 +106,7 @@ def create_enhanced_interface():
             with gr.Column(scale=2, elem_classes=["system-info"]):
                 system_status = gr.Markdown(f"""
                 **Device**: {device_used} | **Config**: {config_used}  
-                **Model**: Qwen3-8B INT4 | **Load Time**: {load_time:.1f}s  
+                **Model**: Phi-3-mini-128k-instruct INT4 | **Load Time**: {load_time:.1f}s  
                 **Enhanced Context**: {'✅ Active' if ENHANCED_CONTEXT_AVAILABLE else '⚠️ Fallback'}  
                 **Profile**: {config.get('deployment', 'npu_profile', 'balanced').title()}
                 """)
@@ -121,7 +121,7 @@ def create_enhanced_interface():
         
         # Main chat interface using official ChatInterface pattern
         chatbot = gr.Chatbot(
-            label=f"Conversation (Qwen3-8B on {device_used})",
+            label=f"Conversation (Phi-3-mini-128k on {device_used})",
             height=650,
             type='messages',
             avatar_images=(None, "🤖"),
@@ -189,7 +189,7 @@ def create_enhanced_interface():
         # Input controls
         with gr.Row():
             msg_input = gr.Textbox(
-                placeholder=f"Chat with Qwen3 on {device_used} (max {config.get('ui', 'max_message_length', 400)} chars)...",
+                placeholder=f"Chat with Phi-3 on {device_used} (max {config.get('ui', 'max_message_length', 2000)} chars)...",
                 scale=7,
                 max_lines=4,
                 show_label=False,
@@ -224,7 +224,7 @@ def create_enhanced_interface():
                 metrics_json = gr.JSON(label="System Metrics", container=True)
                 
                 if ENHANCED_CONTEXT_AVAILABLE:
-                    gr.Markdown("### 🎯 Qwen3-Specific Stats")
+                    gr.Markdown("### 🎯 Model-Specific Stats")
                     qwen3_stats = gr.JSON(label="Token Filtering & Processing", container=True)
         
         # Examples section
@@ -277,7 +277,7 @@ def create_enhanced_interface():
                 qwen3_specific = {
                     "Enhanced Features": "Active",
                     "NPUW Profile": config.get('deployment', 'npu_profile', 'balanced'),
-                    "Qwen3 Architecture": f"{QWEN3_8B_ARCHITECTURE.get('parameters', '8B')} parameters",
+                    "Model Architecture": f"Phi-3-mini-128k-instruct",
                     "Max Context": f"{QWEN3_8B_ARCHITECTURE.get('max_position_embeddings', 40960):,} tokens",
                     "Special Tokens Available": len(QWEN3_SPECIAL_TOKENS) if 'QWEN3_SPECIAL_TOKENS' in globals() else 0
                 }
@@ -310,7 +310,7 @@ def create_enhanced_interface():
             - NPU Profile: {npu_profile}
             
             **Model Details:**
-            - Model: Qwen3-8B INT4 Quantized
+            - Model: Phi-3-mini-128k-instruct INT4 Quantized
             - Path: `{model_path}`
             - Load Time: {load_time:.1f} seconds
             - Tokenizer: HuggingFace AutoTokenizer
@@ -322,9 +322,9 @@ def create_enhanced_interface():
             - Generation: Temperature={config.get('generation', 'temperature', 0.6)}, Top-p={config.get('generation', 'top_p', 0.95)}
             
             **Enhanced Features:**
-            {"✅ Complete Qwen3 NPUW optimization" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic NPUW configuration"}
+            {"✅ Complete Phi-3 NPUW optimization" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic NPUW configuration"}
             {"✅ Advanced special token filtering" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic token filtering"}
-            {"✅ Qwen3-specific chat templates" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Standard templates"}
+            {"✅ Phi-3-specific optimizations" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Standard templates"}
             {"✅ Advanced performance monitoring" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic metrics"}
             {"✅ RAG document processing" if rag_system.available else "⚠️ RAG not available"}
             
