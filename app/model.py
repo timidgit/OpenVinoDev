@@ -111,8 +111,8 @@ class Qwen3ConfigurationManager:
                 "NPUW_LLM_MAX_PROMPT_LEN": 2048,
                 "NPUW_LLM_MIN_RESPONSE_LEN": 256,
                 "CACHE_MODE": "OPTIMIZE_SPEED",
-                "NPUW_LLM_PREFILL_HINT": "BEST_PERF",
-                "NPUW_LLM_GENERATE_HINT": "BEST_PERF"
+                "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
+                "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE"
             }
             
             # Add OpenVINO properties if available

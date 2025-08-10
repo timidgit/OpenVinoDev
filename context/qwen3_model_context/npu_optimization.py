@@ -110,9 +110,9 @@ class Qwen3NPUConfigBuilder:
             "NPUW_LLM_MAX_PROMPT_LEN": self.profile.max_prompt_len,
             "NPUW_LLM_MIN_RESPONSE_LEN": self.profile.min_response_len,
             
-            # Performance hints for NPUW (using supported values)
-            "NPUW_LLM_PREFILL_HINT": "BEST_PERF",
-            "NPUW_LLM_GENERATE_HINT": "BEST_PERF",
+            # Performance hints for NPUW (using actually supported values)
+            "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
+            "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE",
             
             # Advanced NPUW settings (removed unsupported options)
             "NPUW_WEIGHTS_BANK": "YES",         # Memory optimization

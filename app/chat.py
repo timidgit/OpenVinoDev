@@ -17,9 +17,9 @@ import openvino_genai as ov_genai
 from .config import get_config
 from .streamer import EnhancedQwen3Streamer, streaming_metrics
 
-# Type definitions
-ChatMessage = TypedDict('ChatMessage', {'role': str, 'content': str})
-ChatHistory = List[ChatMessage]
+# Type definitions for Gradio ChatInterface compatibility
+# ChatHistory is a list of [user_message, bot_response] pairs
+ChatHistory = List[List[str]]
 
 # RAG system imports with fallback
 try:
@@ -341,10 +341,10 @@ def prepare_chat_input(message: str, history: ChatHistory) -> Tuple[str, bool, C
     is_valid, reason = InputValidator.validate_message(message)
     if not is_valid:
         error_history = history.copy()
-        error_history.append({
-            "role": "assistant", 
-            "content": f"🚫 Message rejected: {reason}. Please try a different message."
-        })
+        error_history.append([
+            message, 
+            f"🚫 Message rejected: {reason}. Please try a different message."
+        ])
         raise ValueError(f"Security validation failed: {reason}")
     
     # Sanitize input
@@ -357,17 +357,14 @@ def prepare_chat_input(message: str, history: ChatHistory) -> Tuple[str, bool, C
     updated_history = history.copy()
     
     if was_truncated:
-        truncation_warning = {
-            "role": "assistant",
-            "content": f"⚠️ Your message was truncated from {len(message):,} to {len(processed_message)} characters due to NPU memory limits. Processing the truncated version..."
-        }
-        updated_history.append({"role": "user", "content": message})
-        updated_history.append(truncation_warning)
-    else:
-        updated_history.append({"role": "user", "content": processed_message})
+        # Add truncation warning as a separate exchange
+        updated_history.append([
+            message,
+            f"⚠️ Your message was truncated from {len(message):,} to {len(processed_message)} characters due to NPU memory limits. Processing the truncated version..."
+        ])
     
-    # Add assistant placeholder
-    updated_history.append({"role": "assistant", "content": ""})
+    # Add current user message with empty bot response placeholder
+    updated_history.append([processed_message, ""])
     
     return processed_message, was_truncated, updated_history
 
@@ -402,7 +399,7 @@ def stream_response_to_history(streamer: EnhancedQwen3Streamer, history: ChatHis
     
     Args:
         streamer: Active streamer with generation in progress
-        history: Chat history to update
+        history: Chat history to update (list of [user_msg, bot_response] pairs)
         
     Yields:
         Updated history with streaming response
@@ -410,11 +407,11 @@ def stream_response_to_history(streamer: EnhancedQwen3Streamer, history: ChatHis
     try:
         for chunk in streamer:
             if chunk:  # Only add non-empty chunks
-                history[-1]["content"] += chunk
+                history[-1][1] += chunk  # Update the bot response part
                 yield history
     except Exception as e:
         print(f"❌ Streaming error: {e}")
-        history[-1]["content"] = f"❌ Streaming error: {str(e)[:100]}..."
+        history[-1][1] = f"❌ Streaming error: {str(e)[:100]}..."
         yield history
 
 
@@ -448,12 +445,14 @@ def handle_chat_error(error: Exception, history: ChatHistory) -> ChatHistory:
     else:
         error_message += f"Details: {str(error)[:100]}..."
     
-    # Add error to history
+    # Add error to history in the correct format
     updated_history = history.copy()
-    if not updated_history or updated_history[-1]["role"] != "assistant":
-        updated_history.append({"role": "assistant", "content": error_message})
+    if not updated_history or len(updated_history[-1]) < 2 or updated_history[-1][1]:
+        # If no history or last message has a bot response, add new exchange
+        updated_history.append(["Error", error_message])
     else:
-        updated_history[-1]["content"] = error_message
+        # Update the empty bot response
+        updated_history[-1][1] = error_message
     
     return updated_history
 
