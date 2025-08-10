@@ -231,7 +231,6 @@ def setup_launch_config(args: argparse.Namespace) -> dict:
         "server_port": args.port,
         "share": args.share or os.getenv("GRADIO_SHARE", "").lower() in ('true', '1', 'yes'),
         "show_error": True,
-        "show_tips": True,
         "quiet": not args.debug,
         "max_file_size": args.max_file_size,
         "allowed_paths": []  # No file access by default for security
