@@ -503,15 +503,13 @@ class Qwen3ConfigurationManager:
                 "NPUW_LLM_GENERATE_HINT": "BEST_PERF"
             }
             
-            # Add OpenVINO properties if available
+            # Add OpenVINO properties if available (no generic PERFORMANCE_HINT for NPU)
             if OPENVINO_PROPERTIES_AVAILABLE:
                 config.update({
-                    hints.performance_mode: hints.PerformanceMode.LATENCY,
                     props.cache_dir: CACHE_DIR
                 })
             else:
                 config.update({
-                    "PERFORMANCE_HINT": "LATENCY",
                     "CACHE_DIR": CACHE_DIR
                 })
             

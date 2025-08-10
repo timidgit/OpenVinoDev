@@ -111,8 +111,8 @@ class Qwen3NPUConfigBuilder:
             "NPUW_LLM_MIN_RESPONSE_LEN": self.profile.min_response_len,
             
             # Performance hints for NPUW (using actually supported values)
-            "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
-            "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE",
+            "NPUW_LLM_PREFILL_HINT": "LATENCY",
+            "NPUW_LLM_GENERATE_HINT": "LATENCY",
             
             # Advanced NPUW settings (removed unsupported options)
             "NPUW_WEIGHTS_BANK": "YES",         # Memory optimization

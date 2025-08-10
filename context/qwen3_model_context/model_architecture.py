@@ -73,8 +73,8 @@ class Qwen3OpenVINOConfig:
             # Qwen3-specific NPUW settings
             "NPUW_LLM_MAX_PROMPT_LEN": 2048,    # Conservative for NPU
             "NPUW_LLM_MIN_RESPONSE_LEN": 256,
-            "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
-            "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE",
+            "NPUW_LLM_PREFILL_HINT": "LATENCY",
+            "NPUW_LLM_GENERATE_HINT": "LATENCY",
             
             # Memory optimization for 8B model
             "CACHE_MODE": "OPTIMIZE_SPEED"

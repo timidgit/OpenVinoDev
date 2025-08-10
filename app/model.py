@@ -111,20 +111,18 @@ class Qwen3ConfigurationManager:
                 "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
                 "NPUW_LLM_MIN_RESPONSE_LEN": 512,  # Increased for better responses
                 "CACHE_MODE": "OPTIMIZE_SPEED",
-                "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
-                "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE"
+                "NPUW_LLM_PREFILL_HINT": "LATENCY",
+                "NPUW_LLM_GENERATE_HINT": "LATENCY"
             }
             
-            # Add OpenVINO properties if available
+            # Add OpenVINO properties if available (no generic PERFORMANCE_HINT for NPU)
             if OPENVINO_PROPERTIES_AVAILABLE:
                 cache_dir = get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3")
                 config.update({
-                    hints.performance_mode: hints.PerformanceMode.LATENCY,
                     props.cache_dir: cache_dir
                 })
             else:
                 config.update({
-                    "PERFORMANCE_HINT": "LATENCY",
                     "CACHE_DIR": get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3")
                 })
             
