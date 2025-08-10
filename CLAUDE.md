@@ -78,6 +78,18 @@ python check_model_config.py
 create_llm_context.bat
 ```
 
+### **Installation**
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Key dependencies
+pip install openvino-genai>=2024.4.0 gradio>=4.0.0 transformers>=4.30.0
+
+# RAG dependencies (optional)
+pip install langchain faiss-cpu sentence-transformers
+```
+
 ## **Current Model Configuration**
 
 ### **Phi-3-mini-128k-instruct (Current)**
@@ -114,17 +126,19 @@ set NPU_PROFILE=balanced
 ## **Critical NPU Configuration Knowledge**
 
 ### **NPUW Configuration (ESSENTIAL)**
-NPU requires specific NPUW hint values. **Fixed configuration uses supported values**:
+NPU requires specific NPUW hint values. **Current configuration uses supported values**:
 
 ```python
-# CORRECT (Currently in codebase):
-"NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
-"NPUW_LLM_GENERATE_HINT": "FAST_COMPILE"
+# CORRECT (Currently in codebase after fixes):
+"NPUW_LLM_PREFILL_HINT": "LATENCY",
+"NPUW_LLM_GENERATE_HINT": "LATENCY",
 "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
 
 # INCORRECT (Causes compilation errors):
-"NPUW_LLM_PREFILL_HINT": "BEST_PERF",  # Not supported by current drivers
-"NPUW_LLM_GENERATE_HINT": "LATENCY"    # Not supported
+"NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",  # Not supported by current drivers
+"NPUW_LLM_GENERATE_HINT": "BEST_PERF"     # Not supported
+
+# CRITICAL: Do NOT use generic PERFORMANCE_HINT with NPUW hints - they conflict
 ```
 
 ### **Configuration Priority System**
@@ -186,7 +200,7 @@ pipe.generate(prompt)  # Re-processes entire conversation each time
 ## **Advanced Features Integration**
 
 ### **RAG Document Processing**
-- **Dependencies**: `langchain`, `faiss-cpu`, `sentence-transformers`, `langchain-community`
+- **Dependencies**: `langchain`, `faiss-cpu`, `sentence-transformers`
 - **Supported formats**: `.txt`, `.md`, `.py`, `.js`, `.html`, `.css`, `.json`
 - **Security**: File type validation, size limits, content sanitization
 - **Integration**: Automatic context retrieval and prompt augmentation
@@ -215,13 +229,7 @@ When switching models:
 - **Token Limits**: NPU has hard-coded prompt length limits (now 8192 for Phi-3)
 - **Defensive Programming**: Always validate input length before NPU processing
 - **Configuration Validation**: Ensure NPUW settings use supported values
-- **3-Strike Rule**: After 3 NPU failures, reassess approach and use CPU fallback
-
-### **Security-First Development**
-- **Input Validation**: All user inputs processed through `InputValidator` class
-- **File Upload Security**: Type restrictions, size limits, content validation
-- **Environment Configuration**: Sensitive data via environment variables only
-- **Error Handling**: User-friendly messages without exposing internals
+- **Conflict Avoidance**: Do not use generic PERFORMANCE_HINT with NPUW-specific hints
 
 ### **Testing Strategy**
 ```bash
@@ -241,7 +249,7 @@ python main.py --model-path "C:\OpenVinoModels\phi3-128k-npu" --debug
 ## **Legacy Context System**
 
 **NOTE**: The `context/qwen3_model_context/` directory retains its Qwen3 naming but contains NPU optimization patterns that work effectively with Phi-3. The enhanced context system:
-- Provides NPU NPUW configuration profiles
+- Provides NPU NPUW configuration profiles with correct hint values
 - Contains C++ reference implementations
 - Includes Gradio integration patterns
 - Should be preserved even when migrating to other models
