@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## **Project Overview**
 
-This is a **production-ready, modular Qwen3-8B chat application** using OpenVINO GenAI with Intel NPU optimization. The project has evolved from a monolithic implementation to a professional modular architecture with comprehensive features including RAG document processing, dynamic system prompts, and advanced performance monitoring.
+This is a **production-ready, modular Phi-3-mini-128k-instruct chat application** using OpenVINO GenAI with Intel NPU optimization. The project has evolved from a monolithic implementation to a professional modular architecture with comprehensive features including RAG document processing, dynamic system prompts, and advanced performance monitoring. **Recently migrated from Qwen3-8B to Phi-3 for massive 128k context support**.
 
 ## **Architecture Overview**
 
@@ -19,7 +19,7 @@ This is a **production-ready, modular Qwen3-8B chat application** using OpenVINO
 app/
 ├── config.py      # Multi-source configuration (CLI → env → JSON → defaults)
 ├── model.py       # NPU pipeline deployment with comprehensive fallbacks  
-├── streamer.py    # Qwen3-specific token filtering & performance metrics
+├── streamer.py    # Token filtering & performance metrics (legacy Qwen3 naming)
 ├── chat.py        # Chat processing with RAG integration & Gradio compatibility
 └── ui.py          # Professional Gradio interface with advanced features
 ```
@@ -27,7 +27,7 @@ app/
 ### **Context System**
 ```
 context/
-├── qwen3_model_context/     # Qwen3-specific optimizations
+├── qwen3_model_context/     # Legacy optimizations (still used for NPU patterns)
 │   ├── npu_optimization.py  # NPU NPUW configuration profiles
 │   ├── model_architecture.py # Model-specific settings
 │   └── special_tokens.py    # Token filtering definitions
@@ -59,8 +59,8 @@ python main.py --device NPU --npu-profile conservative
 # Debug mode with verbose logging  
 python main.py --debug
 
-# Custom configuration
-python main.py --model-path ./models/qwen3 --port 8080
+# Custom model path (useful for model switching)
+python main.py --model-path "C:\OpenVinoModels\phi3-128k-npu"
 
 # Full CLI help
 python main.py --help
@@ -69,7 +69,7 @@ python main.py --help
 ### **Development & Utilities**
 ```bash
 # Export NPU-compatible model
-python export_qwen_for_npu.py --model Qwen/Qwen2-7B-Instruct --output qwen2-7b-npu
+python export_qwen_for_npu.py --model microsoft/Phi-3-mini-128k-instruct --output phi3-128k-npu
 
 # Analyze model compatibility  
 python check_model_config.py
@@ -78,39 +78,73 @@ python check_model_config.py
 create_llm_context.bat
 ```
 
-## **Critical Configuration Knowledge**
+## **Current Model Configuration**
+
+### **Phi-3-mini-128k-instruct (Current)**
+The application now uses **microsoft/Phi-3-mini-128k-instruct** with massive context improvements:
+
+```json
+{
+  "model": {
+    "path": "C:\\OpenVinoModels\\phi3-128k-npu",
+    "name": "Phi-3-mini-128k-instruct", 
+    "type": "phi3"
+  },
+  "ui": {
+    "max_message_length": 2000,      # Was 400 (5x increase)
+    "max_conversation_tokens": 8000, # Was 1800 (4.4x increase)
+    "emergency_limit": 16384         # Was 2048 (8x increase)
+  }
+}
+```
+
+### **Environment Variable Configuration**
+```bash
+# Primary (recommended)
+set MODEL_PATH=C:\OpenVinoModels\phi3-128k-npu
+
+# Backward compatibility  
+set QWEN3_MODEL_PATH=C:\OpenVinoModels\phi3-128k-npu
+
+# Device and profile
+set TARGET_DEVICE=NPU
+set NPU_PROFILE=balanced
+```
+
+## **Critical NPU Configuration Knowledge**
 
 ### **NPUW Configuration (ESSENTIAL)**
-The NPU requires specific NPUW hint values. **Recent fixes corrected unsupported values**:
+NPU requires specific NPUW hint values. **Fixed configuration uses supported values**:
 
 ```python
-# CORRECT (Fixed in codebase):
+# CORRECT (Currently in codebase):
 "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",
 "NPUW_LLM_GENERATE_HINT": "FAST_COMPILE"
+"NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
 
 # INCORRECT (Causes compilation errors):
 "NPUW_LLM_PREFILL_HINT": "BEST_PERF",  # Not supported by current drivers
-"NPUW_LLM_GENERATE_HINT": "BEST_PERF"  # Not supported by current drivers
+"NPUW_LLM_GENERATE_HINT": "LATENCY"    # Not supported
 ```
 
 ### **Configuration Priority System**
 The modular architecture implements **4-tier configuration priority**:
-1. **CLI Arguments** (highest): `--device CPU --npu-profile conservative`
-2. **Environment Variables**: `QWEN3_MODEL_PATH=/path/to/model`
+1. **CLI Arguments** (highest): `--device CPU --model-path path/to/model`
+2. **Environment Variables**: `MODEL_PATH=/path/to/model`
 3. **JSON Configuration**: `config.json` settings
 4. **Built-in Defaults** (lowest): Hardcoded fallbacks
 
 ### **NPU Deployment Strategy**
-`deploy_qwen3_pipeline()` implements multi-tier fallback:
-1. **Enhanced Context**: Uses `context/qwen3_model_context/` optimizations
-2. **Manual Configuration**: Fallback NPUW settings
+`deploy_qwen3_pipeline()` (function name retained for compatibility) implements multi-tier fallback:
+1. **Enhanced Context**: Uses `context/qwen3_model_context/` for NPU optimization patterns
+2. **Manual Configuration**: Fallback NPUW settings optimized for Phi-3
 3. **Basic Configuration**: Minimal OpenVINO properties  
 4. **CPU Fallback**: Automatic device switching
 
-## **Gradio ChatInterface Compatibility**
+## **Gradio ChatInterface Compatibility (CRITICAL)**
 
-### **Data Format Requirements (CRITICAL)**
-The chat system uses **Gradio ChatInterface** which expects specific data formats:
+### **Data Format Requirements**
+The chat system uses **Gradio ChatInterface** which requires specific data formats:
 
 ```python
 # CORRECT format for Gradio ChatInterface:
@@ -119,7 +153,7 @@ ChatHistory = List[List[str]]  # [["user_msg", "bot_response"], ...]
 # Functions return/yield this format:
 history = [["Hello", "Hi there!"], ["How are you?", "I'm doing well!"]]
 
-# WRONG format (causes Gradio errors):
+# WRONG format (causes "Data incompatible with messages format" errors):
 history = [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi!"}]
 ```
 
@@ -129,7 +163,7 @@ history = [{"role": "user", "content": "Hello"}, {"role": "assistant", "content"
 def stream_response_to_history(streamer, history):
     for chunk in streamer:
         if chunk:
-            history[-1][1] += chunk  # Update bot response part
+            history[-1][1] += chunk  # Update bot response part (index [1])
             yield history
 ```
 
@@ -152,7 +186,7 @@ pipe.generate(prompt)  # Re-processes entire conversation each time
 ## **Advanced Features Integration**
 
 ### **RAG Document Processing**
-- **Dependencies**: `langchain`, `faiss-cpu`, `sentence-transformers`
+- **Dependencies**: `langchain`, `faiss-cpu`, `sentence-transformers`, `langchain-community`
 - **Supported formats**: `.txt`, `.md`, `.py`, `.js`, `.html`, `.css`, `.json`
 - **Security**: File type validation, size limits, content sanitization
 - **Integration**: Automatic context retrieval and prompt augmentation
@@ -169,10 +203,18 @@ pipe.generate(prompt)  # Re-processes entire conversation each time
 
 ## **Development Guidelines**
 
+### **Model Migration Patterns**
+When switching models:
+1. **Update config.json**: Model path, cache directory, token limits
+2. **Update app/model.py**: NPU configuration limits, cache paths, print statements
+3. **Update app/ui.py**: UI labels, system prompts, performance targets
+4. **Update main.py**: Application descriptions and startup messages
+5. **Test thoroughly**: Validate system requirements and full startup
+
 ### **NPU Development Constraints**
-- **Token Limits**: NPU has hard-coded prompt length limits (~2048 tokens)
+- **Token Limits**: NPU has hard-coded prompt length limits (now 8192 for Phi-3)
 - **Defensive Programming**: Always validate input length before NPU processing
-- **Configuration Validation**: Ensure NPUW settings are supported
+- **Configuration Validation**: Ensure NPUW settings use supported values
 - **3-Strike Rule**: After 3 NPU failures, reassess approach and use CPU fallback
 
 ### **Security-First Development**
@@ -180,13 +222,6 @@ pipe.generate(prompt)  # Re-processes entire conversation each time
 - **File Upload Security**: Type restrictions, size limits, content validation
 - **Environment Configuration**: Sensitive data via environment variables only
 - **Error Handling**: User-friendly messages without exposing internals
-
-### **Modular Development Process**
-1. **Target `app/` modules** for all new features
-2. **Use `main.py` CLI interface** for testing and configuration
-3. **Follow configuration priority system** (CLI → env → JSON → defaults)
-4. **Implement comprehensive error handling** with device fallbacks
-5. **Maintain Gradio data format compatibility** in chat functions
 
 ### **Testing Strategy**
 ```bash
@@ -196,19 +231,20 @@ python main.py --validate-only
 # Test NPU functionality with debug output
 python main.py --device NPU --debug
 
-# Test CPU fallback behavior
+# Test CPU fallback behavior  
 python main.py --device CPU --debug
 
-# Test configuration loading
-python main.py --config custom_config.json --debug
+# Test model path override
+python main.py --model-path "C:\OpenVinoModels\phi3-128k-npu" --debug
 ```
 
-## **Legacy Files (Archive Only)**
+## **Legacy Context System**
 
-**DO NOT USE PATTERNS FROM THESE FILES**:
-- `archive/gradio_qwen_*.py` - Historical implementations
-- These are maintained for reference only, not for new development
-- All functionality has been migrated to the modular architecture
+**NOTE**: The `context/qwen3_model_context/` directory retains its Qwen3 naming but contains NPU optimization patterns that work effectively with Phi-3. The enhanced context system:
+- Provides NPU NPUW configuration profiles
+- Contains C++ reference implementations
+- Includes Gradio integration patterns
+- Should be preserved even when migrating to other models
 
 ## **Quality Gates for NPU Features**
 
@@ -218,14 +254,14 @@ A feature is "production ready" when:
 - ✅ User receives clear feedback about active device
 - ✅ Performance metrics are reasonable (>10 tokens/sec for NPU)
 - ✅ Memory usage stays within NPU constraints
-- ✅ Long conversations don't cause token limit crashes
+- ✅ Conversations leverage full context without crashes
 - ✅ Gradio data format compatibility maintained
 
 ## **Critical Implementation Patterns**
 
 ### **Configuration Composition**
 - Use dependency injection, not global variables
-- `ConfigurationLoader` manages all settings
+- `ConfigurationLoader` manages all settings with priority system
 - Environment-agnostic code for deployment flexibility
 - Every feature has CPU/basic fallback option
 
@@ -236,7 +272,8 @@ A feature is "production ready" when:
 - Device fallback triggers with transparent communication
 
 ### **Performance Optimization**
-- Token-level streaming with Qwen3-specific filtering
+- Token-level streaming with model-agnostic filtering
 - Real-time metrics integration throughout pipeline
 - Model compilation caching for faster subsequent loads
 - Proper resource cleanup and session management
+- Leverage Phi-3's 128k context for complex conversations
