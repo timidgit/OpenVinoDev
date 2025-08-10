@@ -73,8 +73,8 @@ class Qwen3OpenVINOConfig:
             # Qwen3-specific NPUW settings
             "NPUW_LLM_MAX_PROMPT_LEN": 2048,    # Conservative for NPU
             "NPUW_LLM_MIN_RESPONSE_LEN": 256,
-            "NPUW_LLM_PREFILL_HINT": "BEST_PERF",
-            "NPUW_LLM_GENERATE_HINT": "BEST_PERF",
+            "NPUW_LLM_PREFILL_HINT": "LATENCY",
+            "NPUW_LLM_GENERATE_HINT": "LATENCY",
             
             # Memory optimization for 8B model
             "CACHE_MODE": "OPTIMIZE_SPEED",
@@ -141,7 +141,24 @@ def initialize_qwen3_pipeline(model_path, device="NPU", **kwargs):
         Initialized LLMPipeline optimized for Qwen3
     """
     import openvino_genai as ov_genai
-    from openvino import properties as props, hints
+    
+    # Try modern OpenVINO imports with fallback
+    try:
+        import openvino.properties as props
+        import openvino.properties.hint as hints
+        OPENVINO_PROPERTIES_AVAILABLE = True
+    except ImportError:
+        print("⚠️ OpenVINO properties could not be imported. Using fallback.")
+        OPENVINO_PROPERTIES_AVAILABLE = False
+        # Create mock objects for compatibility
+        class MockProps:
+            pass
+        class MockHints:
+            class PerformanceMode:
+                LATENCY = "LATENCY"
+                THROUGHPUT = "THROUGHPUT"
+        props = MockProps()
+        hints = MockHints()
     
     config_provider = Qwen3OpenVINOConfig()
     

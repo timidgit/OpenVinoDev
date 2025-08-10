@@ -1,32 +1,210 @@
-# **CLAUDE.md (Public Repository Edition)**
+# CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. It is optimized with insights from the complete OpenVINO GenAI source and documentation.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## ⚖️ **Public Repository Guidelines**
+## **Architecture Overview**
 
-**IMPORTANT**: This is now a public repository under MIT License with third-party integrations.
+This project has **evolved from a monolithic implementation to a production-ready modular architecture**. The codebase represents a complete transformation following professional software engineering practices.
 
-### Legal Compliance Requirements
-- **Respect all third-party licenses** (see ACKNOWLEDGMENTS.md for complete list)
-- **No hardcoded proprietary paths** or personal information in commits
-- **Use environment variables** for all configurable paths and settings  
-- **Always include proper attribution** for code derived from external sources
-- **Follow responsible AI practices** in all implementations and documentation
+### **Current State: Dual Architecture**
 
-### Code Standards for Public Release
-- **Professional documentation** with clear explanations for community users
-- **Robust error handling** with helpful diagnostic messages
-- **Environment-agnostic code** that works across different setups
-- **Security-conscious practices** for input validation and processing
-- **Clear separation** between original work and third-party integrations
+The repository supports **two entry points**:
 
-## **1\. Core Mandate & Primary Directive**
+1. **`main.py` (RECOMMENDED)**: Modern modular architecture with CLI interface
+2. **`gradio_qwen_enhanced.py`**: Legacy single-file version (still functional)
 
-**Your canonical reference for all development is gradio\_qwen\_enhanced.py**. This file represents the current, production-ready best practice for this repository.
+**CRITICAL**: All new development should target the **modular architecture** (`app/` directory) accessed via `main.py`.
 
-All other gradio\_qwen\_\*.py files (e.g., refined, hybrid, optimized, debug) are considered **LEGACY**. You may reference them for historical context, but you **MUST NOT** use their code patterns for new implementations. They solve problems that are now addressed more effectively in gradio\_qwen\_enhanced.py.
+### **Modular Application Structure**
 
-**Your primary goal is to understand, apply, and extend the patterns found exclusively in gradio\_qwen\_enhanced.py**.
+```
+app/
+├── config.py      # Multi-source configuration (CLI → env → JSON → defaults)
+├── model.py       # NPU pipeline deployment with comprehensive fallbacks  
+├── streamer.py    # Qwen3-specific token filtering & performance metrics
+├── chat.py        # Chat processing with RAG integration
+└── ui.py          # Professional Gradio interface with advanced features
+```
+
+### **Legacy Files (Archive Only)**
+
+**DO NOT USE PATTERNS FROM THESE FILES**:
+- `archive/gradio_qwen_*.py` - Historical implementations, moved to archive
+- Use only as reference for understanding evolution, not for new code
+
+## **Common Commands**
+
+### **Primary Application Launch**
+```bash
+# Modern modular entry point (PREFERRED)
+python main.py
+
+# Legacy single-file version
+python gradio_qwen_enhanced.py
+```
+
+### **Configuration & Development**
+```bash
+# System validation
+python main.py --validate-only
+
+# Debug mode with verbose logging  
+python main.py --debug
+
+# Device-specific testing
+python main.py --device CPU
+python main.py --device NPU --npu-profile conservative
+
+# Custom model path
+python main.py --model-path ./models/qwen3
+
+# Full CLI help
+python main.py --help
+```
+
+### **Context and Utilities**
+```bash
+# Export NPU-compatible model
+python export_qwen_for_npu.py --model Qwen/Qwen2-7B-Instruct --output qwen2-7b-npu
+
+# Analyze model compatibility  
+python check_model_config.py
+
+# Create consolidated context
+create_llm_context.bat
+```
+
+## **NPU Configuration (CRITICAL)**
+
+### **Fixed Configuration Issues**
+
+The NPU NPUW hints have been **corrected from problematic values**:
+
+```python
+# CORRECT (Fixed in codebase):
+"NPUW_LLM_PREFILL_HINT": "LATENCY",
+"NPUW_LLM_GENERATE_HINT": "LATENCY"
+
+# INCORRECT (Would cause compilation errors):
+"NPUW_LLM_PREFILL_HINT": "BEST_PERF",  # Not supported by current drivers
+"NPUW_LLM_GENERATE_HINT": "BEST_PERF"  # Not supported by current drivers
+```
+
+### **Configuration Priority System**
+
+The modular architecture implements a **4-tier configuration priority**:
+
+1. **CLI Arguments** (highest priority): `--device CPU --npu-profile conservative`
+2. **Environment Variables**: `TARGET_DEVICE=NPU NPU_PROFILE=balanced`
+3. **JSON Configuration**: `config.json` file settings
+4. **Built-in Defaults** (lowest priority): Hardcoded fallbacks
+
+### **NPU Deployment Strategy**
+
+The `deploy_qwen3_pipeline()` function implements a **multi-tier fallback**:
+
+1. **Enhanced Context**: Uses `context/qwen3_model_context/` optimizations
+2. **Manual Configuration**: Fallback NPUW settings
+3. **Basic Configuration**: Minimal OpenVINO properties
+4. **CPU Fallback**: Automatic device switching
+
+## **Advanced Features Integration**
+
+### **RAG Document Processing**
+
+The modular system includes **production-ready RAG integration**:
+
+- **Document Upload**: `.txt`, `.md`, `.py`, `.js`, `.html`, `.css`, `.json` support
+- **Vector Storage**: FAISS-based similarity search
+- **Context Retrieval**: Automatic relevant document section extraction
+- **Security**: Input validation and file type restrictions
+
+### **Dynamic System Prompts** 
+
+**Real-time AI behavior customization**:
+- User-editable system prompts through Gradio interface
+- Session management with `pipe.start_chat(SYSTEM_PROMPT)`
+- Reset to defaults and apply changes instantly
+
+### **Performance Monitoring**
+
+**Comprehensive metrics tracking**:
+- Real-time response times and token generation rates
+- Device utilization and NPU-specific diagnostics  
+- Special token filtering statistics
+- Professional JSON-based metrics display
+
+## **Stateful API Usage (ESSENTIAL)**
+
+OpenVINO GenAI pipelines are **stateful** - they manage conversation history internally:
+
+```python
+# CORRECT Pattern:
+pipe.start_chat(SYSTEM_PROMPT)        # Initialize session
+pipe.generate(new_message, config)    # Send only new message  
+pipe.finish_chat()                    # Clear session
+
+# WRONG Pattern (causes token limit errors):
+full_conversation = build_history(history + [new_message])
+prompt = tokenizer.apply_chat_template(full_conversation)
+pipe.generate(prompt)  # Re-processes entire conversation each time
+```
+
+## **Development Guidelines**
+
+### **Modular Development Process**
+
+1. **Target the `app/` modules** for all new features
+2. **Use `main.py` CLI interface** for testing and configuration
+3. **Follow the configuration priority system** (CLI → env → JSON → defaults)  
+4. **Implement comprehensive error handling** with device fallbacks
+5. **Add security validation** for user inputs and file uploads
+
+### **NPU Development Constraints**
+
+- **Token Limits**: NPU has hard-coded prompt length limits (~2048 tokens)
+- **Defensive Programming**: Always validate input length before NPU processing
+- **Compilation Errors**: NPU compilation failures require specific NPUW configuration
+- **3-Strike Rule**: After 3 NPU failures, reassess approach and use CPU fallback
+
+### **Testing Strategy**
+
+```bash
+# Test NPU functionality
+python main.py --device NPU --debug
+
+# Test CPU fallback  
+python main.py --device CPU --debug
+
+# Validate system requirements
+python main.py --validate-only
+
+# Test with custom configuration
+python main.py --config custom_config.json --debug
+```
+
+## **Critical Implementation Patterns**
+
+### **Security-First Development**
+
+- **Input Validation**: All user inputs go through `InputValidator` class
+- **File Upload Security**: Restricted file types, size limits, content validation
+- **Environment Variables**: All paths and sensitive data use env vars
+- **Error Handling**: Specific exceptions with user-friendly messages
+
+### **Configuration Composition**
+
+- **No Global Variables**: Use dependency injection pattern
+- **Configuration Objects**: `ConfigurationLoader` manages all settings  
+- **Environment Agnostic**: Code works across different deployment scenarios
+- **Fallback Safety**: Every feature has CPU/basic fallback option
+
+### **Performance Optimization**
+
+- **Streaming Architecture**: Token-level response streaming with filtering
+- **Metrics Integration**: Real-time performance monitoring throughout
+- **Caching Strategy**: Model compilation cache for faster subsequent loads
+- **Resource Management**: Proper cleanup and session management
 
 ## **2\. Project Architecture: An Evolutionary Path**
 
