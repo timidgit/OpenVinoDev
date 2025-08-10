@@ -168,7 +168,17 @@ def create_enhanced_interface():
                 clear_docs_btn = gr.Button("🗑️ Clear Documents", variant="secondary", size="sm")
                 rag_status_btn = gr.Button("📊 RAG Status", size="sm")
             
-            if not RAG_AVAILABLE:
+            # Dynamic check for RAG availability 
+            try:
+                try:
+                    from langchain_huggingface import HuggingFaceEmbeddings
+                except ImportError:
+                    from langchain_community.embeddings import HuggingFaceEmbeddings
+                rag_available_now = True
+            except ImportError:
+                rag_available_now = False
+            
+            if not rag_available_now:
                 gr.Markdown("""
                 ⚠️ **RAG not available**: Install dependencies with:
                 ```
@@ -316,7 +326,7 @@ def create_enhanced_interface():
             {"✅ Advanced special token filtering" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic token filtering"}
             {"✅ Qwen3-specific chat templates" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Standard templates"}
             {"✅ Advanced performance monitoring" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic metrics"}
-            {"✅ RAG document processing" if RAG_AVAILABLE else "⚠️ RAG not available"}
+            {"✅ RAG document processing" if rag_system.available else "⚠️ RAG not available"}
             
             **Performance Targets (NPU):**
             - Load Time: <90s (first run), <30s (cached)
@@ -409,11 +419,10 @@ def create_enhanced_interface():
             [chatbot, msg_input, system_prompt_input]
         )
         
-        # RAG event handlers
-        if RAG_AVAILABLE:
-            file_upload.upload(handle_file_upload, [file_upload], [upload_status])
-            clear_docs_btn.click(clear_documents, None, [upload_status])
-            rag_status_btn.click(show_rag_status, None, [upload_status])
+        # RAG event handlers - always enable, will show error if RAG not available
+        file_upload.upload(handle_file_upload, [file_upload], [upload_status])
+        clear_docs_btn.click(clear_documents, None, [upload_status])
+        rag_status_btn.click(show_rag_status, None, [upload_status])
         
         # Initialize chat session when interface loads
         def initialize_session():

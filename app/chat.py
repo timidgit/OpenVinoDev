@@ -24,7 +24,12 @@ ChatHistory = List[ChatMessage]
 # RAG system imports with fallback
 try:
     from langchain.text_splitter import RecursiveCharacterTextSplitter
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    try:
+        # Try modern import first
+        from langchain_huggingface import HuggingFaceEmbeddings
+    except ImportError:
+        # Fallback to legacy import
+        from langchain_community.embeddings import HuggingFaceEmbeddings
     from langchain_community.vectorstores import FAISS
     RAG_AVAILABLE = True
     print("✅ RAG dependencies loaded successfully")
