@@ -13,6 +13,11 @@ typing-extensions>=4.0.0
 # Optional Performance Libraries (recommended)
 psutil>=5.8.0  # For system monitoring and resource tracking
 
+# RAG Dependencies (for document processing)
+langchain>=0.1.0
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.0
+
 # Development Dependencies (optional)
 # Uncomment for development/testing:
 # pytest>=6.0.0

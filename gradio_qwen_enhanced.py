@@ -89,6 +89,18 @@ import os
 context_path = os.path.join(os.path.dirname(__file__), "context")
 sys.path.insert(0, context_path)
 
+# RAG system imports with fallback
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_community.vectorstores import FAISS
+    RAG_AVAILABLE = True
+    print("✅ RAG dependencies loaded successfully")
+except ImportError as e:
+    print(f"⚠️ RAG dependencies not available: {e}")
+    print("📝 Install with: pip install langchain faiss-cpu sentence-transformers")
+    RAG_AVAILABLE = False
+
 # Import Qwen3-specific optimizations
 try:
     from qwen3_model_context.npu_optimization import (
@@ -290,8 +302,151 @@ class SystemMetrics:
 # Global metrics instance
 system_metrics = SystemMetrics(session_start_time=time.time())
 
+# --- RAG System ---
+class DocumentRAGSystem:
+    """Retrieval-Augmented Generation system for document processing"""
+    
+    def __init__(self):
+        """Initialize RAG system with fallback handling"""
+        self.vector_store = None
+        self.embeddings = None
+        self.text_splitter = None
+        self.processed_docs_count = 0
+        self.available = RAG_AVAILABLE
+        
+        if RAG_AVAILABLE:
+            try:
+                # Initialize embeddings model (lightweight for fast loading)
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2",
+                    model_kwargs={'device': 'cpu'}
+                )
+                
+                # Initialize text splitter with optimized settings
+                self.text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=800,  # Smaller chunks for better retrieval
+                    chunk_overlap=100,  # Overlap for context preservation
+                    separators=["\n\n", "\n", ". ", " ", ""]
+                )
+                
+                print("✅ RAG system initialized successfully")
+                
+            except Exception as e:
+                print(f"⚠️ RAG initialization failed: {e}")
+                self.available = False
+        else:
+            print("📝 RAG system not available - install dependencies to enable")
+    
+    def process_uploaded_file(self, file_path: str, file_name: str) -> str:
+        """
+        Process uploaded file for RAG retrieval.
+        
+        Args:
+            file_path: Path to the uploaded file
+            file_name: Original name of the file
+            
+        Returns:
+            Status message about processing result
+        """
+        if not self.available:
+            return "❌ RAG system not available. Install langchain and faiss-cpu to enable document processing."
+        
+        try:
+            # Read file content with encoding detection
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+            except UnicodeDecodeError:
+                # Try with different encoding
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    text = f.read()
+            
+            if not text.strip():
+                return f"⚠️ File '{file_name}' appears to be empty."
+            
+            # Split text into chunks
+            chunks = self.text_splitter.split_text(text)
+            
+            if not chunks:
+                return f"⚠️ No processable content found in '{file_name}'."
+            
+            # Create or update vector store
+            if self.vector_store is None:
+                self.vector_store = FAISS.from_texts(
+                    texts=chunks, 
+                    embedding=self.embeddings,
+                    metadatas=[{"source": file_name, "chunk": i} for i in range(len(chunks))]
+                )
+            else:
+                # Add new documents to existing store
+                new_store = FAISS.from_texts(
+                    texts=chunks, 
+                    embedding=self.embeddings,
+                    metadatas=[{"source": file_name, "chunk": i} for i in range(len(chunks))]
+                )
+                self.vector_store.merge_from(new_store)
+            
+            self.processed_docs_count += 1
+            
+            return f"✅ Successfully processed '{file_name}': {len(chunks)} chunks created from {len(text):,} characters. Ready to answer questions about this document."
+            
+        except Exception as e:
+            return f"❌ Error processing '{file_name}': {str(e)}"
+    
+    def retrieve_context(self, query: str, k: int = 3) -> str:
+        """
+        Retrieve relevant context for a query.
+        
+        Args:
+            query: User question to find relevant context for
+            k: Number of top chunks to retrieve
+            
+        Returns:
+            Concatenated context from relevant document chunks
+        """
+        if not self.available or self.vector_store is None:
+            return ""
+        
+        try:
+            # Search for relevant documents
+            docs = self.vector_store.similarity_search(query, k=k)
+            
+            if not docs:
+                return ""
+            
+            # Format context with source attribution
+            context_parts = []
+            for doc in docs:
+                source = doc.metadata.get("source", "Unknown")
+                content = doc.page_content.strip()
+                context_parts.append(f"[From {source}]\n{content}")
+            
+            return "\n\n---\n\n".join(context_parts)
+            
+        except Exception as e:
+            print(f"⚠️ Context retrieval error: {e}")
+            return ""
+    
+    def clear_documents(self) -> str:
+        """Clear all processed documents"""
+        self.vector_store = None
+        self.processed_docs_count = 0
+        return "✅ All documents cleared from memory."
+    
+    def get_status(self) -> dict:
+        """Get current RAG system status"""
+        return {
+            "Available": self.available,
+            "Documents Processed": self.processed_docs_count,
+            "Vector Store": "Loaded" if self.vector_store is not None else "Empty",
+            "Embedding Model": "all-MiniLM-L6-v2" if self.available else "None"
+        }
+
+# Global RAG system instance
+rag_system = DocumentRAGSystem()
+
 # Enhanced system prompt with Qwen3 optimization
-SYSTEM_PROMPT = """You are a helpful, concise AI assistant powered by Qwen3-8B running on Intel NPU via OpenVINO GenAI. 
+DEFAULT_SYSTEM_PROMPT = """You are a helpful, concise AI assistant powered by Qwen3-8B running on Intel NPU via OpenVINO GenAI. 
 
 Key behaviors:
 - Provide accurate, well-structured responses
@@ -301,6 +456,9 @@ Key behaviors:
 - Optimize for NPU constraints (prefer shorter, focused responses)
 
 You excel at: reasoning, coding, analysis, creative writing, and technical explanations."""
+
+# Current system prompt (can be modified by user)
+SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 # --- Enhanced Configuration Management ---
 class Qwen3ConfigurationManager:
@@ -897,11 +1055,11 @@ def handle_chat_error(error: Exception, history: ChatHistory) -> ChatHistory:
 # --- Enhanced Chat Function (Refactored) ---
 def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHistory]:
     """
-    Enhanced chat function with comprehensive Qwen3 optimization.
+    Enhanced chat function with comprehensive Qwen3 optimization and RAG support.
     
     This is the main chat processing function that handles user input,
-    processes it through the Qwen3 model, and streams back the response
-    with comprehensive error handling and performance monitoring.
+    processes it through the Qwen3 model with optional document context,
+    and streams back the response with comprehensive error handling and performance monitoring.
     
     Args:
         message: User input message to process
@@ -932,6 +1090,21 @@ def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHist
         if was_truncated:
             yield updated_history
             time.sleep(0.5)  # Brief pause for user to see warning
+        
+        # Step 1.5: RAG Context Retrieval
+        rag_context = ""
+        if rag_system.available and rag_system.vector_store is not None:
+            rag_context = rag_system.retrieve_context(processed_message)
+            if rag_context:
+                # Augment the message with context
+                augmented_message = f"""Based on the following context from uploaded documents, please answer the user's question. If the context doesn't contain relevant information, please indicate that and provide a general response.
+
+Context:
+{rag_context}
+
+Question: {processed_message}"""
+                processed_message = augmented_message
+                print(f"📚 Using RAG context: {len(rag_context)} characters from documents")
         
         # Step 2: Initialize streaming components
         streamer = EnhancedQwen3Streamer(tokenizer)
@@ -1193,6 +1366,51 @@ def create_enhanced_interface():
             render_markdown=True
         )
         
+        # System prompt control
+        with gr.Accordion("🎯 System Prompt Configuration", open=False):
+            system_prompt_input = gr.Textbox(
+                value=SYSTEM_PROMPT,
+                lines=6,
+                label="System Prompt",
+                placeholder="Configure the AI's behavior and persona...",
+                interactive=True,
+                info="This prompt sets the AI's behavior, expertise, and response style. Changes take effect after clearing the chat."
+            )
+            
+            with gr.Row():
+                reset_prompt_btn = gr.Button("🔄 Reset to Default", size="sm")
+                apply_prompt_btn = gr.Button("✅ Apply & Clear Chat", variant="primary", size="sm")
+        
+        # Document upload for RAG
+        with gr.Accordion("📚 Document Upload (RAG)", open=False):
+            with gr.Row():
+                with gr.Column(scale=3):
+                    file_upload = gr.File(
+                        label="Upload Documents",
+                        file_types=[".txt", ".md", ".py", ".js", ".html", ".css", ".json"],
+                        file_count="multiple",
+                        interactive=True
+                    )
+                    
+                with gr.Column(scale=2):
+                    upload_status = gr.Textbox(
+                        label="Upload Status",
+                        interactive=False,
+                        placeholder="No documents uploaded"
+                    )
+            
+            with gr.Row():
+                clear_docs_btn = gr.Button("🗑️ Clear Documents", variant="secondary", size="sm")
+                rag_status_btn = gr.Button("📊 RAG Status", size="sm")
+            
+            if not RAG_AVAILABLE:
+                gr.Markdown("""
+                ⚠️ **RAG not available**: Install dependencies with:
+                ```
+                pip install langchain faiss-cpu sentence-transformers
+                ```
+                """)
+
         # Input controls
         with gr.Row():
             msg_input = gr.Textbox(
@@ -1243,10 +1461,12 @@ def create_enhanced_interface():
                     "What are the advantages of using Intel NPU for AI inference?",
                     "Compare different neural network architectures",
                     "Help me debug this code: def factorial(n): return n * factorial(n)",
-                    "Explain the concept of attention in transformer models"
+                    "Explain the concept of attention in transformer models",
+                    "What does the uploaded document say about...?",
+                    "Summarize the key points from the uploaded files"
                 ],
                 inputs=msg_input,
-                label="💡 Example Questions"
+                label="💡 Example Questions (Upload documents for context-aware answers)"
             )
         
         # Event handlers with enhanced functionality
@@ -1254,17 +1474,24 @@ def create_enhanced_interface():
             """Handle send with proper session management"""
             return enhanced_qwen3_chat(message, history)
         
-        def handle_clear():
+        def handle_clear(current_system_prompt):
             """Handle clear with proper session reset"""
+            global SYSTEM_PROMPT
             try:
+                # Update global system prompt if changed
+                if current_system_prompt.strip():
+                    SYSTEM_PROMPT = current_system_prompt.strip()
+                else:
+                    SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
+                
                 # End current session and start new one
                 pipe.finish_chat()
                 pipe.start_chat(SYSTEM_PROMPT)
-                print("🔄 Chat session reset")
-                return [], ""
+                print("🔄 Chat session reset with updated system prompt")
+                return [], "", SYSTEM_PROMPT
             except Exception as e:
                 print(f"⚠️ Session reset error: {e}")
-                return [], ""
+                return [], "", current_system_prompt
         
         def show_metrics():
             """Display comprehensive performance metrics"""
@@ -1347,6 +1574,55 @@ def create_enhanced_interface():
             
             gr.Info("📊 Performance metrics reset successfully")
         
+        def reset_system_prompt():
+            """Reset system prompt to default"""
+            return DEFAULT_SYSTEM_PROMPT
+        
+        def apply_system_prompt(new_prompt):
+            """Apply new system prompt and clear chat"""
+            global SYSTEM_PROMPT
+            if new_prompt.strip():
+                SYSTEM_PROMPT = new_prompt.strip()
+            else:
+                SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
+            
+            try:
+                pipe.finish_chat()
+                pipe.start_chat(SYSTEM_PROMPT)
+                gr.Info("✅ System prompt updated and chat cleared")
+                return [], "", SYSTEM_PROMPT
+            except Exception as e:
+                gr.Warning(f"⚠️ Error applying prompt: {e}")
+                return [], "", new_prompt
+        
+        def handle_file_upload(files):
+            """Handle uploaded files for RAG processing"""
+            if not files:
+                return "No files selected"
+            
+            results = []
+            for file in files:
+                if file is None:
+                    continue
+                
+                file_name = os.path.basename(file.name)
+                result = rag_system.process_uploaded_file(file.name, file_name)
+                results.append(result)
+            
+            return "\n\n".join(results)
+        
+        def clear_documents():
+            """Clear all uploaded documents"""
+            result = rag_system.clear_documents()
+            gr.Info(result)
+            return result
+        
+        def show_rag_status():
+            """Show RAG system status"""
+            status = rag_system.get_status()
+            gr.Info(f"RAG Status: {status}")
+            return str(status)
+        
         # Wire up event handlers
         msg_input.submit(handle_send, [msg_input, chatbot], chatbot).then(
             lambda: gr.update(value=""), None, [msg_input]
@@ -1356,7 +1632,7 @@ def create_enhanced_interface():
             lambda: gr.update(value=""), None, [msg_input]
         )
         
-        clear_btn.click(handle_clear, None, [chatbot, msg_input])
+        clear_btn.click(handle_clear, [system_prompt_input], [chatbot, msg_input, system_prompt_input])
         
         metrics_btn.click(
             show_metrics, 
@@ -1366,6 +1642,19 @@ def create_enhanced_interface():
         
         system_btn.click(show_system_info, None, None)
         reset_metrics_btn.click(reset_metrics, None, None)
+        
+        # System prompt event handlers
+        reset_prompt_btn.click(reset_system_prompt, None, [system_prompt_input])
+        apply_prompt_btn.click(
+            apply_system_prompt, 
+            [system_prompt_input], 
+            [chatbot, msg_input, system_prompt_input]
+        )
+        
+        # RAG event handlers
+        file_upload.upload(handle_file_upload, [file_upload], [upload_status])
+        clear_docs_btn.click(clear_documents, None, [upload_status])
+        rag_status_btn.click(show_rag_status, None, [upload_status])
         
         # Initialize chat session when interface loads
         def initialize_session():

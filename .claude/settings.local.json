@@ -7,7 +7,10 @@
       "Bash(rm:*)",
       "Bash(cp:*)",
       "Bash(find:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(mkdir:*)",
+      "Bash(move gradio_qwen_debug.py gradio_qwen_hybrid.py gradio_qwen_optimized.py gradio_qwen_refined.py archive)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }
