@@ -1,4 +1,4 @@
-# Enhanced Qwen3 OpenVINO GenAI - Git Ignore Rules
+# Enhanced Phi-3-mini-128k-instruct OpenVINO GenAI - Git Ignore Rules
 
 # Python
 __pycache__/

@@ -55,9 +55,9 @@ class ConfigurationLoader:
         """Get default configuration values"""
         return {
             "model": {
-                "path": "./models/qwen3-8b-int4-cw-ov",
-                "name": "Qwen3-8B",
-                "type": "qwen3"
+                "path": "C:\\OpenVinoModels\\phi3-128k-npu",
+                "name": "Phi-3-mini-128k-instruct",
+                "type": "phi3"
             },
             "deployment": {
                 "target_device": "NPU",

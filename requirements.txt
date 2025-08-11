@@ -1,4 +1,4 @@
-# Enhanced Qwen3 OpenVINO GenAI Chat Application
+# Enhanced Phi-3-mini-128k-instruct OpenVINO GenAI Chat Application
 # Requirements for public repository usage
 
 # Core Dependencies
@@ -15,6 +15,7 @@ psutil>=5.8.0  # For system monitoring and resource tracking
 
 # RAG Dependencies (for document processing)
 langchain>=0.1.0
+langchain-huggingface>=0.1.0  # New recommended package for HuggingFace integrations
 faiss-cpu>=1.7.4
 sentence-transformers>=2.2.0
 
@@ -32,6 +33,6 @@ sentence-transformers>=2.2.0
 # https://www.intel.com/content/www/us/en/products/docs/processors/core/core-processors-with-intel-npu.html
 #
 # Model Requirements:
-# - Qwen3-8B INT4 model in OpenVINO format
-# - Download from official sources (HuggingFace, ModelScope)
+# - microsoft/Phi-3-mini-128k-instruct in OpenVINO format
+# - Download from official sources (HuggingFace)
 # - Ensure compliance with model licensing terms

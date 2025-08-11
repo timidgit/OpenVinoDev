@@ -166,9 +166,9 @@ class ConfigurationLoader:
         """Get default configuration values"""
         return {
             "model": {
-                "path": "./models/qwen3-8b-int4-cw-ov",
-                "name": "Qwen3-8B",
-                "type": "qwen3"
+                "path": "C:\\OpenVinoModels\\phi3-128k-npu",
+                "name": "Phi-3-mini-128k-instruct",
+                "type": "phi3"
             },
             "deployment": {
                 "target_device": "NPU",
@@ -252,7 +252,7 @@ config = ConfigurationLoader()
 
 # --- Constants and Configuration ---
 # Use configuration system instead of hardcoded values
-MODEL_PATH = config.get("model", "path", "./models/qwen3-8b-int4-cw-ov")
+MODEL_PATH = config.get("model", "path", "C:\\OpenVinoModels\\phi3-128k-npu")
 DEVICE = config.get("deployment", "target_device", "NPU")
 CACHE_DIR = config.get("deployment", "cache_directory", "./cache/.ovcache_qwen3_enhanced")
 

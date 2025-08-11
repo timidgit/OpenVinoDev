@@ -98,5 +98,5 @@ def check_model_config(model_path):
         print(f"❌ Error reading config: {e}")
 
 if __name__ == "__main__":
-    model_path = r"C:\OpenVinoModels\qwen3-8b-int4-cw-ov"
+    model_path = r"C:\OpenVinoModels\phi3-128k-npu"
     check_model_config(model_path)
