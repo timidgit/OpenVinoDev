@@ -16,7 +16,8 @@
       "Bash(set MODEL_PATH=C:OpenVinoModelsphi3-128k-npu)",
       "Bash(set QWEN3_MODEL_PATH=)",
       "Bash(git add:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(pip install:*)"
     ],
     "deny": []
   }

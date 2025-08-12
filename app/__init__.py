@@ -1,8 +1,8 @@
 """
-Enhanced Qwen3 OpenVINO GenAI Chat Application
-==============================================
+Enhanced OpenVINO GenAI Chat Application
+========================================
 
-A modular, production-ready implementation of Qwen3-8B chat interface
+A modular, production-ready implementation of Phi-3-mini-128k-instruct chat interface
 using OpenVINO GenAI with Intel NPU optimization and RAG capabilities.
 
 Copyright (c) 2025 sbran
@@ -12,7 +12,7 @@ Modules:
 --------
 - config: Configuration management and environment handling
 - model: Pipeline deployment and system initialization  
-- streamer: Token streaming and filtering for Qwen3
+- streamer: Token streaming and filtering for LLMs
 - chat: Core chat processing with RAG integration
 - ui: Gradio interface creation and event handling
 """
@@ -23,16 +23,16 @@ __license__ = "MIT"
 
 # Import key components for easy access
 from .config import ConfigurationLoader
-from .model import deploy_qwen3_pipeline, initialize_system_with_validation
-from .streamer import EnhancedQwen3Streamer
-from .chat import enhanced_qwen3_chat
+from .model import deploy_llm_pipeline, initialize_system_with_validation
+from .streamer import EnhancedLLMStreamer
+from .chat import enhanced_llm_chat
 from .ui import create_enhanced_interface
 
 __all__ = [
     "ConfigurationLoader",
-    "deploy_qwen3_pipeline", 
+    "deploy_llm_pipeline", 
     "initialize_system_with_validation",
-    "EnhancedQwen3Streamer",
-    "enhanced_qwen3_chat",
+    "EnhancedLLMStreamer",
+    "enhanced_llm_chat",
     "create_enhanced_interface"
 ]

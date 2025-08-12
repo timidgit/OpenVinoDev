@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  phi3-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7860:7860"
+    volumes:
+      # Mount model directory (adjust path as needed)
+      - "${MODEL_PATH:-./models}:/app/models:ro"
+      # Mount cache for persistence
+      - "./cache:/app/cache"
+      # Development: mount source code
+      - "./app:/app/app:ro"
+      - "./main.py:/app/main.py:ro"
+    environment:
+      - MODEL_PATH=${MODEL_PATH:-./models/phi3-128k-npu}
+      - TARGET_DEVICE=${TARGET_DEVICE:-AUTO}
+      - NPU_PROFILE=${NPU_PROFILE:-balanced}
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT=7860
+    # Enable access to host devices (for NPU)
+    privileged: true
+    devices:
+      - "/dev/accel:/dev/accel"  # NPU device access
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Development environment
+  phi3-chat-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7861:7860"
+    volumes:
+      - "./:/app"  # Full source mount for development
+    environment:
+      - MODEL_PATH=${MODEL_PATH:-./models/phi3-128k-npu}
+      - TARGET_DEVICE=CPU  # Safer for development
+      - GRADIO_SERVER_NAME=0.0.0.0
+    command: ["python3", "main.py", "--device", "CPU", "--debug"]
+    profiles:
+      - dev

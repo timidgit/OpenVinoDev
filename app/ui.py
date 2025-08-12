@@ -11,7 +11,16 @@ import gradio as gr
 from typing import Dict, Any
 
 from .config import get_config
-from .chat import enhanced_qwen3_chat, rag_system, RAG_AVAILABLE
+from .chat import enhanced_llm_chat, rag_system, RAG_AVAILABLE
+
+# Agent system import
+try:
+    from .agent import AGENT_AVAILABLE, get_agent
+    print("✅ Agent UI components loaded")
+except ImportError:
+    AGENT_AVAILABLE = False
+    get_agent = lambda: None
+    print("⚠️ Agent UI components not available")
 from .streamer import streaming_metrics
 
 # Import enhanced context patterns
@@ -150,9 +159,17 @@ def create_enhanced_interface():
         with gr.Accordion("📚 Document Upload (RAG)", open=False):
             with gr.Row():
                 with gr.Column(scale=3):
+                    # Dynamic file types based on parsing capabilities
+                    if rag_system.advanced_parsing:
+                        supported_types = [".txt", ".md", ".py", ".js", ".html", ".css", ".json", ".pdf", ".docx", ".pptx"]
+                        upload_label = "Upload Documents (Advanced Parsing Enabled)"
+                    else:
+                        supported_types = [".txt", ".md", ".py", ".js", ".html", ".css", ".json"]
+                        upload_label = "Upload Documents (Basic Text Processing)"
+                    
                     file_upload = gr.File(
-                        label="Upload Documents",
-                        file_types=[".txt", ".md", ".py", ".js", ".html", ".css", ".json"],
+                        label=upload_label,
+                        file_types=supported_types,
                         file_count="multiple",
                         interactive=True
                     )
@@ -181,10 +198,101 @@ def create_enhanced_interface():
             if not rag_available_now:
                 gr.Markdown("""
                 ⚠️ **RAG not available**: Install dependencies with:
-                ```
+                ```bash
+                # Basic RAG functionality
                 pip install langchain faiss-cpu sentence-transformers
+                
+                # Advanced features (Phase 3)
+                pip install unstructured[local-inference] langchain-unstructured torch
                 ```
                 """)
+
+        # Agent Tools Section (Phase 3.3)
+        with gr.Accordion("🤖 AI Agent Tools", open=False):
+            if AGENT_AVAILABLE:
+                agent_tools_display = gr.Markdown("""
+                **Available Agent Tools:**
+                
+                🧮 **Calculator**: Perform mathematical calculations  
+                📅 **Date/Time**: Get current time, dates, and calculate date differences  
+                🔍 **Web Search**: Search for information (mock implementation)  
+                📊 **Text Analysis**: Analyze text for word count, readability, etc.
+                
+                **Usage**: Simply ask naturally! The agent will automatically use tools when needed.
+                
+                **Examples:**
+                - "What's 25 * 4 + 10?"
+                - "What time is it?"
+                - "Analyze this text: [your text]"
+                - "Search for information about AI"
+                """)
+                
+                with gr.Row():
+                    agent_status_btn = gr.Button("🤖 Agent Status", variant="secondary", size="sm")
+                    agent_tools_btn = gr.Button("🛠️ List Tools", variant="secondary", size="sm")
+                
+                agent_status_output = gr.Textbox(
+                    label="Agent System Status",
+                    interactive=False,
+                    visible=False,
+                    max_lines=5
+                )
+            else:
+                gr.Markdown("""
+                ⚠️ **Agent system not available**: Install dependencies with:
+                ```bash
+                pip install langchain-core langchain-experimental requests python-dateutil
+                ```
+                
+                Once installed, the AI will be able to use tools like calculators, web search, 
+                and text analysis automatically based on your requests.
+                """)
+
+        # Advanced Generation Settings
+        with gr.Accordion("⚙️ Advanced Generation Settings", open=False):
+            with gr.Row():
+                with gr.Column(scale=1):
+                    temperature_slider = gr.Slider(
+                        minimum=0.1,
+                        maximum=2.0,
+                        step=0.1,
+                        value=config.get('generation', 'temperature', 0.6),
+                        label="Temperature",
+                        info="Controls randomness (0.1=focused, 2.0=creative)"
+                    )
+                    
+                with gr.Column(scale=1):
+                    top_p_slider = gr.Slider(
+                        minimum=0.1,
+                        maximum=1.0,
+                        step=0.05,
+                        value=config.get('generation', 'top_p', 0.95),
+                        label="Top-p (Nucleus Sampling)",
+                        info="Cumulative probability threshold"
+                    )
+                
+                with gr.Column(scale=1):
+                    max_tokens_number = gr.Number(
+                        minimum=50,
+                        maximum=2048,
+                        step=50,
+                        value=config.get('generation', 'max_new_tokens', 512),
+                        label="Max New Tokens",
+                        info="Maximum tokens to generate"
+                    )
+            
+            # Generation settings controls
+            with gr.Row():
+                reset_gen_settings_btn = gr.Button("🔄 Reset to Defaults", variant="secondary", size="sm")
+                apply_gen_settings_btn = gr.Button("✅ Apply Settings", variant="primary", size="sm")
+            
+            # Current generation settings display
+            gen_settings_status = gr.Textbox(
+                value=f"Temperature: {config.get('generation', 'temperature', 0.6)}, Top-p: {config.get('generation', 'top_p', 0.95)}, Max tokens: {config.get('generation', 'max_new_tokens', 512)}",
+                label="Current Settings",
+                interactive=False,
+                max_lines=1
+            )
 
         # Input controls
         with gr.Row():
@@ -225,16 +333,31 @@ def create_enhanced_interface():
                 
                 if ENHANCED_CONTEXT_AVAILABLE:
                     gr.Markdown("### 🎯 Model-Specific Stats")
-                    qwen3_stats = gr.JSON(label="Token Filtering & Processing", container=True)
+                    phi3_stats = gr.JSON(label="Token Filtering & Processing", container=True)
         
         # Examples section
         with gr.Row():
             gr.Examples(
                 examples=[
                     "Explain quantum computing in simple terms",
-                    "Write a Python function to implement quicksort",
+                    "Write a Python function to implement quicksort", 
                     "What are the advantages of using Intel NPU for AI inference?",
                     "Compare different neural network architectures",
+                    "Help me debug this code: def factorial(n): return n * factorial(n)",
+                    "Explain the concept of attention in transformer models",
+                    "What does the uploaded document say about...?",
+                    "Summarize the key points from the uploaded files",
+                    # Agent examples
+                    "What's 15 * 23 + 47?",
+                    "What time is it right now?", 
+                    "Calculate the square root of 144",
+                    "Analyze this text: The quick brown fox jumps over the lazy dog",
+                    "What's tomorrow's date?"
+                ] if AGENT_AVAILABLE else [
+                    "Explain quantum computing in simple terms",
+                    "Write a Python function to implement quicksort",
+                    "What are the advantages of using Intel NPU for AI inference?",
+                    "Compare different neural network architectures", 
                     "Help me debug this code: def factorial(n): return n * factorial(n)",
                     "Explain the concept of attention in transformer models",
                     "What does the uploaded document say about...?",
@@ -244,10 +367,17 @@ def create_enhanced_interface():
                 label="💡 Example Questions (Upload documents for context-aware answers)"
             )
         
+        # Global generation settings storage
+        generation_settings = {
+            'temperature': config.get('generation', 'temperature', 0.6),
+            'top_p': config.get('generation', 'top_p', 0.95),
+            'max_new_tokens': config.get('generation', 'max_new_tokens', 512)
+        }
+        
         # Event handlers with enhanced functionality
         def handle_send(message, history):
             """Handle send with proper session management"""
-            return enhanced_qwen3_chat(message, history)
+            return enhanced_llm_chat(message, history, generation_settings)
         
         def handle_clear(current_system_prompt):
             """Handle clear with proper session reset"""
@@ -327,6 +457,7 @@ def create_enhanced_interface():
             {"✅ Phi-3-specific optimizations" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Standard templates"}
             {"✅ Advanced performance monitoring" if ENHANCED_CONTEXT_AVAILABLE else "⚠️ Basic metrics"}
             {"✅ RAG document processing" if rag_system.available else "⚠️ RAG not available"}
+            {"✅ AI Agent with function-calling" if AGENT_AVAILABLE else "⚠️ Agent system not available"}
             
             **Performance Targets (NPU):**
             - Load Time: <90s (first run), <30s (cached)
@@ -391,6 +522,77 @@ def create_enhanced_interface():
             gr.Info(f"RAG Status: {status}")
             return str(status)
         
+        def reset_generation_settings():
+            """Reset generation settings to defaults"""
+            default_temp = config.get('generation', 'temperature', 0.6)
+            default_top_p = config.get('generation', 'top_p', 0.95)
+            default_max_tokens = config.get('generation', 'max_new_tokens', 512)
+            
+            generation_settings.update({
+                'temperature': default_temp,
+                'top_p': default_top_p,
+                'max_new_tokens': default_max_tokens
+            })
+            
+            status_text = f"Temperature: {default_temp}, Top-p: {default_top_p}, Max tokens: {default_max_tokens}"
+            gr.Info("🔄 Generation settings reset to defaults")
+            return default_temp, default_top_p, default_max_tokens, status_text
+        
+        def apply_generation_settings(temp, top_p, max_tokens):
+            """Apply new generation settings"""
+            generation_settings.update({
+                'temperature': temp,
+                'top_p': top_p,
+                'max_new_tokens': int(max_tokens)
+            })
+            
+            status_text = f"Temperature: {temp}, Top-p: {top_p}, Max tokens: {int(max_tokens)}"
+            gr.Info("✅ Generation settings applied")
+            return status_text
+        
+        def show_agent_status():
+            """Show agent system status and capabilities"""
+            if not AGENT_AVAILABLE:
+                status = "❌ Agent system not available. Install dependencies to enable."
+                gr.Info(status)
+                return status, gr.update(visible=True)
+            
+            agent = get_agent()
+            if agent:
+                status = f"""✅ Agent system active
+                
+Available Tools: {len(agent.tools)}
+Framework: ReAct (Reasoning + Acting)
+Integration: OpenVINO GenAI + LangChain
+
+The agent automatically detects when to use tools based on your questions.
+Ask naturally and it will use the appropriate tools to help you!"""
+            else:
+                status = "⚠️ Agent system loaded but not initialized"
+            
+            gr.Info("Agent status displayed")
+            return status, gr.update(visible=True)
+        
+        def list_agent_tools():
+            """List all available agent tools with descriptions"""
+            if not AGENT_AVAILABLE:
+                status = "❌ No tools available - agent system not loaded"
+                gr.Info(status)
+                return status, gr.update(visible=True)
+            
+            agent = get_agent()
+            if agent:
+                tools_info = []
+                for name, info in agent.tools.items():
+                    tools_info.append(f"🔧 **{name}**: {info['description']}")
+                
+                status = "Available Agent Tools:\n\n" + "\n\n".join(tools_info)
+            else:
+                status = "⚠️ Agent not initialized"
+            
+            gr.Info("Tools list displayed")
+            return status, gr.update(visible=True)
+        
         # Wire up event handlers
         msg_input.submit(handle_send, [msg_input, chatbot], chatbot).then(
             lambda: gr.update(value=""), None, [msg_input]
@@ -405,7 +607,7 @@ def create_enhanced_interface():
         metrics_btn.click(
             show_metrics, 
             None, 
-            [metrics_json, qwen3_stats if ENHANCED_CONTEXT_AVAILABLE else None, metrics_row]
+            [metrics_json, phi3_stats if ENHANCED_CONTEXT_AVAILABLE else None, metrics_row]
         )
         
         system_btn.click(show_system_info, None, None)
@@ -423,6 +625,33 @@ def create_enhanced_interface():
         file_upload.upload(handle_file_upload, [file_upload], [upload_status])
         clear_docs_btn.click(clear_documents, None, [upload_status])
         rag_status_btn.click(show_rag_status, None, [upload_status])
+        
+        # Generation settings event handlers
+        reset_gen_settings_btn.click(
+            reset_generation_settings,
+            None,
+            [temperature_slider, top_p_slider, max_tokens_number, gen_settings_status]
+        )
+        
+        apply_gen_settings_btn.click(
+            apply_generation_settings,
+            [temperature_slider, top_p_slider, max_tokens_number],
+            [gen_settings_status]
+        )
+        
+        # Agent event handlers (if available)
+        if AGENT_AVAILABLE:
+            agent_status_btn.click(
+                show_agent_status,
+                None,
+                [agent_status_output, agent_status_output]
+            )
+            
+            agent_tools_btn.click(
+                list_agent_tools,
+                None,
+                [agent_status_output, agent_status_output]
+            )
         
         # Initialize chat session when interface loads
         def initialize_session():

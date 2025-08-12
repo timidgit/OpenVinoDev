@@ -8,11 +8,11 @@ This is a **production-ready, modular Phi-3-mini-128k-instruct chat application*
 
 ## **Architecture Overview**
 
-### **Dual Entry Points**
-- **`main.py`** (RECOMMENDED): Modern modular architecture with CLI interface
-- **`gradio_qwen_enhanced.py`**: Legacy single-file version (maintained for compatibility)
+### **Unified Architecture**
+- **`main.py`**: Modular architecture with CLI interface (unified entry point)
+- **`archive/gradio_qwen_enhanced.py`**: Archived legacy implementation
 
-**CRITICAL**: All new development should target the **modular architecture** (`app/` directory) accessed via `main.py`.
+**CRITICAL**: All development targets the **modular architecture** (`app/` directory) accessed via `main.py`.
 
 ### **Core Module Structure**
 ```
@@ -40,11 +40,8 @@ context/
 
 ### **Primary Application Launch**
 ```bash
-# Modern modular entry point (PREFERRED)
+# Modular entry point (unified architecture)
 python main.py
-
-# Legacy single-file version (compatibility)
-python gradio_qwen_enhanced.py
 ```
 
 ### **CLI Configuration & Testing**

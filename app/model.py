@@ -62,7 +62,7 @@ try:
         initialize_qwen3_pipeline
     )
     ENHANCED_CONTEXT_AVAILABLE = True
-    print("✅ Enhanced Qwen3 context loaded successfully")
+    print("✅ Enhanced NPU context loaded successfully")
 except ImportError as e:
     print(f"⚠️ Enhanced context not available: {e}")
     print("📝 Using fallback patterns - consider updating context path")
@@ -75,7 +75,7 @@ ProfileType = Literal["conservative", "balanced", "aggressive"]
 ConfigDict = dict[str, Any]
 
 
-class Qwen3ConfigurationManager:
+class LLMConfigurationManager:
     """Advanced configuration management with model-specific optimization (Phi-3 compatible)"""
     
     def __init__(self, profile: ProfileType = "balanced") -> None:
@@ -111,8 +111,8 @@ class Qwen3ConfigurationManager:
                 "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
                 "NPUW_LLM_MIN_RESPONSE_LEN": 512,  # Increased for better responses
                 "CACHE_MODE": "OPTIMIZE_SPEED",
-                "NPUW_LLM_PREFILL_HINT": "LATENCY",
-                "NPUW_LLM_GENERATE_HINT": "LATENCY"
+                "NPUW_LLM_PREFILL_HINT": "BEST_PERF",
+                "NPUW_LLM_GENERATE_HINT": "BEST_PERF"
             }
             
             # Add OpenVINO properties if available (no generic PERFORMANCE_HINT for NPU)
@@ -163,7 +163,7 @@ class Qwen3ConfigurationManager:
             return config
 
 
-def deploy_qwen3_pipeline(
+def deploy_llm_pipeline(
     model_path: str, 
     target_device: DeviceType, 
     profile: ProfileType = "balanced"
@@ -185,9 +185,9 @@ def deploy_qwen3_pipeline(
     load_start_time = time.time()
     
     if ENHANCED_CONTEXT_AVAILABLE:
-        print(f"🚀 Deploying Phi-3 with enhanced context (profile: {profile})")
+        print(f"🚀 Deploying Phi-3 with enhanced NPU context (profile: {profile})")
         
-        # Use enhanced deployment (Qwen3 context used for NPU optimization patterns)
+        # Use enhanced deployment (NPU optimization patterns from context)
         deployment = Qwen3NPUDeployment(model_path, profile)
         pipeline = deployment.deploy()
         
@@ -200,7 +200,7 @@ def deploy_qwen3_pipeline(
     # Fallback to manual configuration
     print(f"🔄 Using manual pipeline deployment (target: {target_device})")
     
-    config_manager = Qwen3ConfigurationManager(profile)
+    config_manager = LLMConfigurationManager(profile)
     
     configurations = []
     
@@ -216,14 +216,14 @@ def deploy_qwen3_pipeline(
     
     if target_device == "NPU":
         configurations = [
-            ("enhanced_npu_qwen3", target_device, config_manager.get_npu_config()),
+            ("enhanced_npu_phi3", target_device, config_manager.get_npu_config()),
             ("basic_npu", target_device, basic_npu_config),
             ("minimal_npu", target_device, {}),
             ("cpu_fallback", "CPU", config_manager.get_cpu_config())
         ]
     else:
         configurations = [
-            ("optimized_cpu_qwen3", target_device, config_manager.get_cpu_config()),
+            ("optimized_cpu_phi3", target_device, config_manager.get_cpu_config()),
             ("basic_cpu", target_device, basic_cpu_config),
             ("minimal_cpu", target_device, {})
         ]
@@ -309,7 +309,7 @@ def initialize_system_with_validation():
         for i, issue in enumerate(issues, 1):
             print(f"   {i}. {issue}")
         print("\n🔧 Suggested fixes:")
-        print("   • Set QWEN3_MODEL_PATH environment variable to correct model location")
+        print("   • Set MODEL_PATH environment variable to correct model location")
         print("   • Install OpenVINO with: pip install openvino")
         print("   • For NPU: Install Intel NPU drivers from official site")
         print("   • Ensure model is in OpenVINO format (.xml/.bin files)")
@@ -329,7 +329,7 @@ def initialize_system_with_validation():
         print(f"🔧 Enhanced Context: {'Available' if ENHANCED_CONTEXT_AVAILABLE else 'Fallback Mode'}")
         
         # Deploy pipeline with comprehensive error handling
-        pipeline, device_used, config_used, load_time = deploy_qwen3_pipeline(
+        pipeline, device_used, config_used, load_time = deploy_llm_pipeline(
             model_path, target_device, npu_profile
         )
         
@@ -363,7 +363,7 @@ def initialize_system_with_validation():
         print(f"   Tokenizer: {tokenizer.__class__.__name__}")
         if ENHANCED_CONTEXT_AVAILABLE:
             from qwen3_model_context.special_tokens import QWEN3_SPECIAL_TOKENS
-            print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} special tokens available (legacy context)")
+            print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} special tokens available (NPU context)")
         print("=" * 60)
         
         return pipeline, tokenizer, device_used, config_used, load_time

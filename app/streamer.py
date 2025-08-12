@@ -2,7 +2,7 @@
 Token Streaming and Filtering
 ============================
 
-Enhanced streaming implementation with Qwen3-specific token filtering,
+Enhanced streaming implementation with Phi-3-specific token filtering,
 performance monitoring, and robust error handling.
 """
 
@@ -25,15 +25,15 @@ try:
         QWEN3_SPECIAL_TOKENS
     )
     ENHANCED_CONTEXT_AVAILABLE = True
-    print("✅ Enhanced Qwen3 token filtering loaded")
+    print("✅ Enhanced Phi-3 token filtering loaded")
 except ImportError:
     print("⚠️ Enhanced token filtering not available - using fallback")
     ENHANCED_CONTEXT_AVAILABLE = False
 
 
-class EnhancedQwen3Streamer(ov_genai.StreamerBase):
+class EnhancedLLMStreamer(ov_genai.StreamerBase):
     """
-    Production-ready streamer with Qwen3-specific optimizations:
+    Production-ready streamer with Phi-3-specific optimizations:
     - Proper special token filtering (26+ tokens)
     - Performance monitoring
     - Robust error handling

@@ -15,11 +15,20 @@ from typing_extensions import TypedDict
 import openvino_genai as ov_genai
 
 from .config import get_config
-from .streamer import EnhancedQwen3Streamer, streaming_metrics
+from .streamer import EnhancedLLMStreamer, streaming_metrics
+
+# Agent system import (Phase 3.3)
+try:
+    from .agent import get_agent, AGENT_AVAILABLE
+    print("✅ Agent system loaded")
+except ImportError as e:
+    print(f"⚠️ Agent system not available: {e}")
+    AGENT_AVAILABLE = False
+    get_agent = lambda: None
 
 # Type definitions for Gradio ChatInterface compatibility
-# ChatHistory is a list of [user_message, bot_response] pairs
-ChatHistory = List[List[str]]
+# ChatHistory is a list of message dictionaries with role and content
+ChatHistory = List[Dict[str, str]]
 
 # RAG system imports with fallback
 try:
@@ -31,12 +40,34 @@ try:
         # Fallback to legacy import
         from langchain_community.embeddings import HuggingFaceEmbeddings
     from langchain_community.vectorstores import FAISS
+    
+    # Advanced document parsing (Phase 3.1)
+    try:
+        from langchain_unstructured import UnstructuredLoader
+        from unstructured.partition.auto import partition
+        ADVANCED_PARSING_AVAILABLE = True
+        print("✅ Advanced document parsing (unstructured) loaded successfully")
+    except ImportError:
+        ADVANCED_PARSING_AVAILABLE = False
+        print("📝 Advanced parsing not available - install with: pip install unstructured[local-inference] langchain-unstructured")
+    
+    # Cross-encoder reranking (Phase 3.2)
+    try:
+        from sentence_transformers import CrossEncoder
+        RERANKING_AVAILABLE = True
+        print("✅ Cross-encoder reranking loaded successfully")
+    except ImportError:
+        RERANKING_AVAILABLE = False
+        print("📝 Reranking not available - already have sentence-transformers but need torch")
+    
     RAG_AVAILABLE = True
     print("✅ RAG dependencies loaded successfully")
 except ImportError as e:
     print(f"⚠️ RAG dependencies not available: {e}")
     print("📝 Install with: pip install langchain faiss-cpu sentence-transformers")
     RAG_AVAILABLE = False
+    ADVANCED_PARSING_AVAILABLE = False
+    RERANKING_AVAILABLE = False
 
 
 class DocumentRAGSystem:
@@ -49,6 +80,11 @@ class DocumentRAGSystem:
         self.text_splitter = None
         self.processed_docs_count = 0
         self.available = RAG_AVAILABLE
+        
+        # Advanced features
+        self.advanced_parsing = ADVANCED_PARSING_AVAILABLE
+        self.reranking = RERANKING_AVAILABLE
+        self.cross_encoder = None
         
         if RAG_AVAILABLE:
             try:
@@ -65,7 +101,17 @@ class DocumentRAGSystem:
                     separators=["\n\n", "\n", ". ", " ", ""]
                 )
                 
+                # Initialize cross-encoder for reranking (Phase 3.2)
+                if RERANKING_AVAILABLE:
+                    try:
+                        self.cross_encoder = CrossEncoder('BAAI/bge-reranker-base')
+                        print("✅ Cross-encoder reranker initialized")
+                    except Exception as e:
+                        print(f"⚠️ Cross-encoder initialization failed: {e}")
+                        self.reranking = False
+                
                 print("✅ RAG system initialized successfully")
+                print(f"📊 Features: Advanced parsing={self.advanced_parsing}, Reranking={self.reranking}")
                 
             except Exception as e:
                 print(f"⚠️ RAG initialization failed: {e}")
@@ -88,14 +134,34 @@ class DocumentRAGSystem:
             return "❌ RAG system not available. Install langchain and faiss-cpu to enable document processing."
         
         try:
-            # Read file content with encoding detection
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    text = f.read()
-            except UnicodeDecodeError:
-                # Try with different encoding
-                with open(file_path, 'r', encoding='latin-1') as f:
-                    text = f.read()
+            # Use advanced parsing if available (Phase 3.1)
+            if self.advanced_parsing and file_name.lower().endswith(('.pdf', '.docx', '.pptx', '.html')):
+                try:
+                    # Use unstructured for advanced document parsing
+                    elements = partition(filename=file_path, strategy="hi_res")
+                    text = "\n\n".join([str(element) for element in elements])
+                    parsing_method = "Advanced (unstructured)"
+                    print(f"📚 Using advanced parsing for {file_name}")
+                except Exception as e:
+                    print(f"⚠️ Advanced parsing failed for {file_name}, falling back to basic: {e}")
+                    # Fallback to basic parsing
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            text = f.read()
+                    except UnicodeDecodeError:
+                        with open(file_path, 'r', encoding='latin-1') as f:
+                            text = f.read()
+                    parsing_method = "Basic (fallback)"
+            else:
+                # Basic text parsing for supported formats
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                except UnicodeDecodeError:
+                    # Try with different encoding
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        text = f.read()
+                parsing_method = "Basic (text)"
             
             if not text.strip():
                 return f"⚠️ File '{file_name}' appears to be empty."
@@ -124,14 +190,14 @@ class DocumentRAGSystem:
             
             self.processed_docs_count += 1
             
-            return f"✅ Successfully processed '{file_name}': {len(chunks)} chunks created from {len(text):,} characters. Ready to answer questions about this document."
+            return f"✅ Successfully processed '{file_name}' using {parsing_method}: {len(chunks)} chunks created from {len(text):,} characters. Ready to answer questions about this document."
             
         except Exception as e:
             return f"❌ Error processing '{file_name}': {str(e)}"
     
     def retrieve_context(self, query: str, k: int = 3) -> str:
         """
-        Retrieve relevant context for a query.
+        Retrieve relevant context for a query with optional cross-encoder reranking.
         
         Args:
             query: User question to find relevant context for
@@ -144,8 +210,32 @@ class DocumentRAGSystem:
             return ""
         
         try:
-            # Search for relevant documents
-            docs = self.vector_store.similarity_search(query, k=k)
+            # Use two-stage retrieval with reranking if available (Phase 3.2)
+            if self.reranking and self.cross_encoder is not None:
+                # Stage 1: Retrieve larger candidate set (e.g., top 20)
+                candidate_docs = self.vector_store.similarity_search(query, k=min(20, k*6))
+                
+                if not candidate_docs:
+                    return ""
+                
+                # Stage 2: Rerank with cross-encoder
+                try:
+                    query_doc_pairs = [(query, doc.page_content) for doc in candidate_docs]
+                    scores = self.cross_encoder.predict(query_doc_pairs)
+                    
+                    # Sort by reranking scores and take top k
+                    scored_docs = list(zip(candidate_docs, scores))
+                    scored_docs.sort(key=lambda x: x[1], reverse=True)
+                    docs = [doc for doc, score in scored_docs[:k]]
+                    
+                    print(f"🔄 Reranked {len(candidate_docs)} candidates → {k} results")
+                    
+                except Exception as e:
+                    print(f"⚠️ Reranking failed, using vector search results: {e}")
+                    docs = candidate_docs[:k]
+            else:
+                # Standard single-stage retrieval
+                docs = self.vector_store.similarity_search(query, k=k)
             
             if not docs:
                 return ""
@@ -170,12 +260,15 @@ class DocumentRAGSystem:
         return "✅ All documents cleared from memory."
     
     def get_status(self) -> dict:
-        """Get current RAG system status"""
+        """Get current RAG system status with advanced features"""
         return {
             "Available": self.available,
             "Documents Processed": self.processed_docs_count,
             "Vector Store": "Loaded" if self.vector_store is not None else "Empty",
-            "Embedding Model": "all-MiniLM-L6-v2" if self.available else "None"
+            "Embedding Model": "all-MiniLM-L6-v2" if self.available else "None",
+            "Advanced Parsing": "✅ unstructured" if self.advanced_parsing else "❌ basic text only",
+            "Cross-Encoder Reranking": "✅ BAAI/bge-reranker-base" if self.reranking else "❌ vector search only",
+            "Supported Formats": "PDF, DOCX, PPTX, HTML, TXT, MD, PY, JS, CSS, JSON" if self.advanced_parsing else "TXT, MD, PY, JS, CSS, JSON"
         }
 
 
@@ -251,9 +344,12 @@ pipe = None
 tokenizer = None
 
 
-def create_qwen3_generation_config() -> ov_genai.GenerationConfig:
+def create_qwen3_generation_config(generation_params: Dict[str, Any] = None) -> ov_genai.GenerationConfig:
     """
-    Create optimized generation configuration for Phi-3 from configuration file.
+    Create optimized generation configuration for Phi-3 with dynamic parameters.
+    
+    Args:
+        generation_params: Optional dict with temperature, top_p, max_new_tokens
     
     Returns:
         Configured GenerationConfig with security-conscious defaults
@@ -261,14 +357,24 @@ def create_qwen3_generation_config() -> ov_genai.GenerationConfig:
     gen_config = ov_genai.GenerationConfig()
     config = get_config()
     
-    # Load generation settings from configuration
+    # Load generation settings from configuration (defaults)
     gen_settings = config.get_section("generation")
     
+    # Use dynamic parameters if provided, otherwise fall back to config defaults
+    if generation_params:
+        temperature = generation_params.get('temperature', gen_settings.get("temperature", 0.6))
+        top_p = generation_params.get('top_p', gen_settings.get("top_p", 0.95))
+        max_new_tokens = generation_params.get('max_new_tokens', gen_settings.get("max_new_tokens", 1024))
+    else:
+        temperature = gen_settings.get("temperature", 0.6)
+        top_p = gen_settings.get("top_p", 0.95)
+        max_new_tokens = gen_settings.get("max_new_tokens", 1024)
+    
     gen_config.do_sample = gen_settings.get("do_sample", True)
-    gen_config.temperature = min(gen_settings.get("temperature", 0.6), 2.0)  # Security: cap temperature
-    gen_config.top_p = min(gen_settings.get("top_p", 0.95), 1.0)  # Security: cap top_p
+    gen_config.temperature = min(float(temperature), 2.0)  # Security: cap temperature
+    gen_config.top_p = min(float(top_p), 1.0)  # Security: cap top_p
     gen_config.top_k = min(gen_settings.get("top_k", 20), 100)  # Security: reasonable top_k
-    gen_config.max_new_tokens = min(gen_settings.get("max_new_tokens", 1024), 2048)  # Security: limit tokens
+    gen_config.max_new_tokens = min(int(max_new_tokens), 2048)  # Security: limit tokens
     gen_config.repetition_penalty = max(1.0, min(gen_settings.get("repetition_penalty", 1.1), 2.0))  # Security: reasonable range
     
     return gen_config
@@ -341,9 +447,9 @@ def prepare_chat_input(message: str, history: ChatHistory) -> Tuple[str, bool, C
     is_valid, reason = InputValidator.validate_message(message)
     if not is_valid:
         error_history = history.copy()
-        error_history.append([
-            message, 
-            f"🚫 Message rejected: {reason}. Please try a different message."
+        error_history.extend([
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": f"🚫 Message rejected: {reason}. Please try a different message."}
         ])
         raise ValueError(f"Security validation failed: {reason}")
     
@@ -358,30 +464,34 @@ def prepare_chat_input(message: str, history: ChatHistory) -> Tuple[str, bool, C
     
     if was_truncated:
         # Add truncation warning as a separate exchange
-        updated_history.append([
-            message,
-            f"⚠️ Your message was truncated from {len(message):,} to {len(processed_message)} characters due to NPU memory limits. Processing the truncated version..."
+        updated_history.extend([
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": f"⚠️ Your message was truncated from {len(message):,} to {len(processed_message)} characters due to NPU memory limits. Processing the truncated version..."}
         ])
     
     # Add current user message with empty bot response placeholder
-    updated_history.append([processed_message, ""])
+    updated_history.extend([
+        {"role": "user", "content": processed_message},
+        {"role": "assistant", "content": ""}
+    ])
     
     return processed_message, was_truncated, updated_history
 
 
-def execute_generation(processed_message: str, streamer: EnhancedQwen3Streamer) -> bool:
+def execute_generation(processed_message: str, streamer: EnhancedLLMStreamer, generation_params: Dict[str, Any] = None) -> bool:
     """
     Execute model generation in a controlled manner.
     
     Args:
         processed_message: Message to generate response for
         streamer: Configured streamer for token processing
+        generation_params: Optional dict with temperature, top_p, max_new_tokens
         
     Returns:
         True if generation succeeded, False otherwise
     """
     try:
-        generation_config = create_qwen3_generation_config()
+        generation_config = create_qwen3_generation_config(generation_params)
         pipe.generate(processed_message, generation_config, streamer)
         return True
     except Exception as e:
@@ -393,7 +503,7 @@ def execute_generation(processed_message: str, streamer: EnhancedQwen3Streamer) 
         return False
 
 
-def stream_response_to_history(streamer: EnhancedQwen3Streamer, history: ChatHistory) -> Iterator[ChatHistory]:
+def stream_response_to_history(streamer: EnhancedLLMStreamer, history: ChatHistory) -> Iterator[ChatHistory]:
     """
     Stream model response tokens to chat history.
     
@@ -407,11 +517,11 @@ def stream_response_to_history(streamer: EnhancedQwen3Streamer, history: ChatHis
     try:
         for chunk in streamer:
             if chunk:  # Only add non-empty chunks
-                history[-1][1] += chunk  # Update the bot response part
+                history[-1]["content"] += chunk  # Update the bot response content
                 yield history
     except Exception as e:
         print(f"❌ Streaming error: {e}")
-        history[-1][1] = f"❌ Streaming error: {str(e)[:100]}..."
+        history[-1]["content"] = f"❌ Streaming error: {str(e)[:100]}..."
         yield history
 
 
@@ -447,17 +557,40 @@ def handle_chat_error(error: Exception, history: ChatHistory) -> ChatHistory:
     
     # Add error to history in the correct format
     updated_history = history.copy()
-    if not updated_history or len(updated_history[-1]) < 2 or updated_history[-1][1]:
+    if not updated_history or updated_history[-1]["role"] != "assistant" or updated_history[-1]["content"]:
         # If no history or last message has a bot response, add new exchange
-        updated_history.append(["Error", error_message])
+        updated_history.append({"role": "assistant", "content": error_message})
     else:
         # Update the empty bot response
-        updated_history[-1][1] = error_message
+        updated_history[-1]["content"] = error_message
     
     return updated_history
 
 
-def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHistory]:
+def should_use_agent(message: str) -> bool:
+    """
+    Determine if the user message should be processed by the agent system.
+    
+    Args:
+        message: User input message
+        
+    Returns:
+        True if agent should be used, False for regular chat
+    """
+    # Keywords that suggest tool usage
+    agent_keywords = [
+        'calculate', 'compute', 'math', 'equation', 'solve',
+        'what time', 'what date', 'today', 'tomorrow', 'yesterday', 
+        'search', 'look up', 'find information',
+        'analyze text', 'word count', 'character count',
+        'tool', 'function', 'help me with'
+    ]
+    
+    message_lower = message.lower()
+    return any(keyword in message_lower for keyword in agent_keywords)
+
+
+def enhanced_llm_chat(message: str, history: ChatHistory, generation_params: Dict[str, Any] = None) -> Iterator[ChatHistory]:
     """
     Enhanced chat function with comprehensive Phi-3 optimization and RAG support.
     
@@ -468,6 +601,7 @@ def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHist
     Args:
         message: User input message to process
         history: Current chat conversation history
+        generation_params: Optional dict with temperature, top_p, max_new_tokens
         
     Yields:
         Updated chat history with streaming response as it's generated
@@ -489,7 +623,28 @@ def enhanced_qwen3_chat(message: str, history: ChatHistory) -> Iterator[ChatHist
             yield updated_history
             time.sleep(0.5)  # Brief pause for user to see warning
         
-        # Step 1.5: RAG Context Retrieval
+        # Step 1.5: Agent vs Regular Chat Decision
+        agent = get_agent()
+        use_agent = AGENT_AVAILABLE and agent and should_use_agent(processed_message)
+        
+        if use_agent:
+            # Use agent processing for tool-based responses
+            print(f"🤖 Using agent processing for: {processed_message[:50]}...")
+            try:
+                agent_response = agent.process_with_tools(processed_message, generation_params)
+                
+                # Stream the agent response
+                updated_history[-1]["content"] = agent_response
+                yield updated_history
+                
+                print(f"📊 Agent request complete: {time.time() - request_start_time:.2f}s total")
+                return
+                
+            except Exception as e:
+                print(f"⚠️ Agent processing failed, falling back to regular chat: {e}")
+                # Continue with regular processing
+        
+        # Step 1.6: RAG Context Retrieval (for regular chat)
         rag_context = ""
         if rag_system.available and rag_system.vector_store is not None:
             rag_context = rag_system.retrieve_context(processed_message)
@@ -508,11 +663,11 @@ Question: {processed_message}"""
         def metrics_callback(metric_name: str, value):
             streaming_metrics.update_metric(metric_name, value)
         
-        streamer = EnhancedQwen3Streamer(tokenizer, metrics_callback)
+        streamer = EnhancedLLMStreamer(tokenizer, metrics_callback)
         
         # Step 3: Execute generation in separate thread
         def generation_worker():
-            success = execute_generation(processed_message, streamer)
+            success = execute_generation(processed_message, streamer, generation_params)
             elapsed_time = time.time() - request_start_time
             streaming_metrics.end_request(success, elapsed_time)
         
@@ -541,3 +696,12 @@ def initialize_globals(pipeline, tokenizer_instance):
     global pipe, tokenizer
     pipe = pipeline
     tokenizer = tokenizer_instance
+    
+    # Initialize agent system if available
+    if AGENT_AVAILABLE:
+        try:
+            from .agent import initialize_agent
+            initialize_agent(pipeline, tokenizer_instance)
+            print("✅ Agent system initialized with LLM pipeline")
+        except Exception as e:
+            print(f"⚠️ Agent initialization failed: {e}")

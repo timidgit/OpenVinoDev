@@ -91,11 +91,8 @@ python main.py --device CPU --npu-profile conservative
 
 5. **Run the application**
 ```bash
-# New modular entry point (recommended)
+# Modular entry point (unified architecture)
 python main.py
-
-# Legacy single-file version (still available)
-python gradio_qwen_enhanced.py
 ```
 
 ## 📋 Requirements
@@ -185,7 +182,7 @@ OpenVinoDev/
 │   ├── gradio_qwen_refined.py # Earlier implementation
 │   └── gradio_qwen_debug.py   # Debug version
 ├── main.py                    # Application entry point with CLI
-├── gradio_qwen_enhanced.py    # Legacy single-file version
+├── archive/                   # Legacy implementations
 ├── config.json               # Configuration file
 └── requirements.txt          # Dependencies
 ```
@@ -284,8 +281,6 @@ Enable detailed logging:
 # Use debug flag with modular version
 python main.py --debug
 
-# For legacy version
-python gradio_qwen_enhanced.py  # Add logging.basicConfig(level=logging.DEBUG)
 ```
 
 ### Command-Line Diagnostics
