@@ -52,7 +52,7 @@ Examples:
   python main.py                              # Use config.json defaults
   python main.py --device CPU                 # Force CPU device  
   python main.py --npu-profile conservative  # Use conservative NPU settings
-  python main.py --model-path ./models/qwen3 # Custom model location
+  python main.py --model-path ./models/phi3-128k-npu # Custom model location
   python main.py --share                     # Enable public sharing (use with caution)
   python main.py --port 8080                 # Use custom port
 
@@ -63,7 +63,8 @@ Configuration Priority:
   4. Built-in defaults (lowest priority)
 
 Environment Variables:
-  QWEN3_MODEL_PATH     - Model directory path
+  MODEL_PATH           - Model directory path
+  QWEN3_MODEL_PATH     - Model directory path (deprecated, use MODEL_PATH)
   TARGET_DEVICE        - Target device (NPU, CPU, GPU, AUTO)
   NPU_PROFILE          - NPU optimization profile
   CACHE_DIR            - Cache directory location

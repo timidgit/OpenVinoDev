@@ -28,16 +28,17 @@ import sys
 context_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "context")
 sys.path.insert(0, context_path)
 
-# Import Qwen3-specific optimizations
+# Import Phi-3-specific optimizations
 try:
-    from qwen3_model_context.npu_optimization import QWEN3_NPU_PROFILES
-    from qwen3_model_context.model_architecture import QWEN3_8B_ARCHITECTURE
-    from qwen3_model_context.special_tokens import QWEN3_SPECIAL_TOKENS
+    from .npu_patterns import (
+        PHI3_PERFORMANCE_PROFILES,
+        PHI3_SPECIAL_TOKENS
+    )
     ENHANCED_CONTEXT_AVAILABLE = True
 except ImportError:
     ENHANCED_CONTEXT_AVAILABLE = False
-    QWEN3_NPU_PROFILES = {}
-    QWEN3_8B_ARCHITECTURE = {}
+    PHI3_PERFORMANCE_PROFILES = {}
+    PHI3_SPECIAL_TOKENS = {}
 
 
 # System prompt management
@@ -315,9 +316,9 @@ def create_enhanced_interface():
                 system_btn = gr.Button("ℹ️ System Info", variant="secondary")
             
             with gr.Column(scale=2):
-                if ENHANCED_CONTEXT_AVAILABLE and QWEN3_NPU_PROFILES:
+                if ENHANCED_CONTEXT_AVAILABLE:
                     profile_selector = gr.Dropdown(
-                        choices=list(QWEN3_NPU_PROFILES.keys()),
+                        choices=["conservative", "balanced", "aggressive"],
                         value=config.get('deployment', 'npu_profile', 'balanced'),
                         label="NPU Profile",
                         interactive=False  # Would need restart to change
@@ -334,6 +335,8 @@ def create_enhanced_interface():
                 if ENHANCED_CONTEXT_AVAILABLE:
                     gr.Markdown("### 🎯 Model-Specific Stats")
                     phi3_stats = gr.JSON(label="Token Filtering & Processing", container=True)
+                else:
+                    phi3_stats = None
         
         # Examples section
         with gr.Row():
@@ -376,8 +379,18 @@ def create_enhanced_interface():
         
         # Event handlers with enhanced functionality
         def handle_send(message, history):
-            """Handle send with proper session management"""
-            return enhanced_llm_chat(message, history, generation_settings)
+            """
+            Handle send with proper session management.
+            Passes the already-formatted history directly to the chat processor.
+            """
+            # Ensure history is a list, even if it's the first turn.
+            if history is None:
+                history = []
+            
+            # The 'history' object from a `type='messages'` chatbot is already
+            # in the correct List[Dict[str, str]] format. No conversion is needed.
+            # We need to yield from the generator, not return it
+            yield from enhanced_llm_chat(message, history, generation_settings)
         
         def handle_clear(current_system_prompt):
             """Handle clear with proper session reset"""
@@ -402,24 +415,24 @@ def create_enhanced_interface():
             """Display comprehensive performance metrics"""
             base_metrics = streaming_metrics.get_summary()
             
-            qwen3_specific = {}
+            phi3_specific = {}
             if ENHANCED_CONTEXT_AVAILABLE:
-                qwen3_specific = {
+                phi3_specific = {
                     "Enhanced Features": "Active",
                     "NPUW Profile": config.get('deployment', 'npu_profile', 'balanced'),
                     "Model Architecture": f"Phi-3-mini-128k-instruct",
-                    "Max Context": f"{QWEN3_8B_ARCHITECTURE.get('max_position_embeddings', 40960):,} tokens",
-                    "Special Tokens Available": len(QWEN3_SPECIAL_TOKENS) if 'QWEN3_SPECIAL_TOKENS' in globals() else 0
+                    "Max Context": "128k tokens",
+                    "Special Tokens Available": len(PHI3_SPECIAL_TOKENS) if PHI3_SPECIAL_TOKENS else 0
                 }
             else:
-                qwen3_specific = {
+                phi3_specific = {
                     "Enhanced Features": "Fallback Mode",
                     "Note": "Install enhanced context for full optimization"
                 }
             
             return (
                 gr.update(value=base_metrics, visible=True),
-                gr.update(value=qwen3_specific, visible=True) if ENHANCED_CONTEXT_AVAILABLE else gr.update(visible=False),
+                gr.update(value=phi3_specific, visible=True) if ENHANCED_CONTEXT_AVAILABLE else gr.update(visible=False),
                 gr.update(visible=True)
             )
         
@@ -604,10 +617,15 @@ Ask naturally and it will use the appropriate tools to help you!"""
         
         clear_btn.click(handle_clear, [system_prompt_input], [chatbot, msg_input, system_prompt_input])
         
+        # Build outputs list for metrics button (filter out None values)
+        metrics_outputs = [metrics_json, metrics_row]
+        if ENHANCED_CONTEXT_AVAILABLE and phi3_stats is not None:
+            metrics_outputs.insert(1, phi3_stats)
+        
         metrics_btn.click(
             show_metrics, 
             None, 
-            [metrics_json, phi3_stats if ENHANCED_CONTEXT_AVAILABLE else None, metrics_row]
+            metrics_outputs
         )
         
         system_btn.click(show_system_info, None, None)

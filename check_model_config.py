@@ -80,7 +80,11 @@ def check_model_config(model_path):
         # Detect likely source model
         print(f"\n🎯 Likely Source Model:")
         model_type = config.get('model_type', '').lower()
-        if 'qwen' in model_type:
+        if 'phi3' in model_type or 'phi-3' in model_type:
+            print(f"   This appears to be a Phi-3 model")
+            if config.get('hidden_size') == 3072:
+                print(f"   Likely: microsoft/Phi-3-mini-128k-instruct")
+        elif 'qwen' in model_type:
             print(f"   This appears to be a Qwen model")
             if config.get('hidden_size') == 4096:
                 print(f"   Likely: Qwen2.5-7B or similar")
@@ -90,7 +94,7 @@ def check_model_config(model_path):
         # Check if model supports NPU
         print(f"\n🖥️  NPU Compatibility Analysis:")
         print(f"   Current export likely has dynamic shapes (causing NPU compilation failure)")
-        print(f"   Recommendation: Re-export with static shapes using export_qwen_for_npu.py")
+        print(f"   Recommendation: Re-export with static shapes using export_model_for_npu.py")
         
         return config
         

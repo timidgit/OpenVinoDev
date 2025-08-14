@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-NPU-Compatible Qwen Model Export Script
-=====================================
+NPU-Compatible Model Export Script
+==================================
 
-This script exports Qwen models with NPU-specific optimizations:
+This script exports language models (Phi-3, Qwen, etc.) with NPU-specific optimizations:
 - Static shapes for KV-cache (required for NPU)
 - Symmetric INT4 quantization
 - Stateful KV-cache implementation
 - Channel-wise quantization for >1B parameter models
 
 Usage:
-    python export_qwen_for_npu.py --model Qwen/Qwen2.5-7B-Instruct --output qwen2.5-7b-npu
+    python export_model_for_npu.py --model microsoft/Phi-3-mini-128k-instruct --output phi3-128k-npu
+    python export_model_for_npu.py --model Qwen/Qwen2.5-7B-Instruct --output qwen2.5-7b-npu
 """
 
 import argparse
@@ -31,12 +32,12 @@ def check_requirements():
         return False
     return True
 
-def export_qwen_for_npu(model_name, output_dir, max_seq_len=2048, min_response_len=256):
+def export_model_for_npu(model_name, output_dir, max_seq_len=2048, min_response_len=256):
     """
-    Export Qwen model optimized for NPU inference
+    Export language model optimized for NPU inference
     
     Args:
-        model_name: Hugging Face model name (e.g., "Qwen/Qwen2.5-7B-Instruct") 
+        model_name: Hugging Face model name (e.g., "microsoft/Phi-3-mini-128k-instruct") 
         output_dir: Directory to save the exported model
         max_seq_len: Maximum sequence length for static shapes
         min_response_len: Minimum response length for NPU optimization
@@ -59,7 +60,7 @@ def export_qwen_for_npu(model_name, output_dir, max_seq_len=2048, min_response_l
         "--sym",                                # Symmetric quantization (NPU preferred)
         "--group-size", "-1",                   # Channel-wise for >1B models
         "--ratio", "1.0",                       # Full model quantization
-        "--trust-remote-code",                  # For Qwen models
+        "--trust-remote-code",                  # For models requiring custom code
         output_dir
     ]
     
@@ -157,12 +158,12 @@ def create_pipeline(model_path, device="NPU"):
     print(f"📄 Created NPU configuration: {config_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Export Qwen models for NPU inference")
+    parser = argparse.ArgumentParser(description="Export language models for NPU inference")
     parser.add_argument("--model", "-m", 
-                       default="Qwen/Qwen2.5-7B-Instruct",
+                       default="microsoft/Phi-3-mini-128k-instruct",
                        help="Hugging Face model name")
     parser.add_argument("--output", "-o", 
-                       default="qwen-npu-model",
+                       default="phi3-npu-model",
                        help="Output directory")
     parser.add_argument("--max-seq-len", 
                        type=int, default=2048,
@@ -181,7 +182,7 @@ def main():
         sys.exit(1)
     
     # Export the model
-    success = export_qwen_for_npu(
+    success = export_model_for_npu(
         args.model, 
         args.output,
         args.max_seq_len,

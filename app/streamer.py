@@ -12,17 +12,11 @@ from typing import Optional
 import openvino_genai as ov_genai
 from transformers import AutoTokenizer
 
-# Import enhanced context patterns
-import os
-import sys
-context_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "context")
-sys.path.insert(0, context_path)
-
-# Import Qwen3-specific filtering
+# Import Phi-3-specific filtering
 try:
-    from qwen3_model_context.special_tokens import (
-        Qwen3StreamingFilter,
-        QWEN3_SPECIAL_TOKENS
+    from .npu_patterns import (
+        is_phi3_special_token,
+        PHI3_SPECIAL_TOKENS
     )
     ENHANCED_CONTEXT_AVAILABLE = True
     print("✅ Enhanced Phi-3 token filtering loaded")
@@ -58,16 +52,16 @@ class EnhancedLLMStreamer(ov_genai.StreamerBase):
         self.tokens_generated = 0
         self.metrics_callback = metrics_callback
         
-        # Initialize Qwen3-specific filtering
+        # Initialize Phi-3-specific filtering
         if ENHANCED_CONTEXT_AVAILABLE:
-            self.token_filter = Qwen3StreamingFilter()
-            print("✅ Using enhanced Qwen3 token filtering")
+            self.use_phi3_filtering = True
+            print("✅ Using enhanced Phi-3 token filtering")
         else:
-            self.token_filter = None
+            self.use_phi3_filtering = False
             print("⚠️ Using basic token filtering")
     
     def put(self, token_id: int) -> bool:
-        """Process token with Qwen3-specific filtering"""
+        """Process token with Phi-3-specific filtering"""
         self.accumulated_tokens.append(token_id)
         self.tokens_generated += 1
         
@@ -77,23 +71,22 @@ class EnhancedLLMStreamer(ov_genai.StreamerBase):
         
         try:
             # Decode with special token handling
-            if ENHANCED_CONTEXT_AVAILABLE and self.token_filter:
-                # Use enhanced filtering
+            if self.use_phi3_filtering:
+                # Use enhanced Phi-3 filtering
                 try:
                     token_text = self.tokenizer.decode([token_id], skip_special_tokens=False)
                 except:
                     token_text = f"[UNK_{token_id}]"
                 
-                # Process through Qwen3 filter
-                display_text = self.token_filter.process_token(token_id, token_text)
-                
-                if display_text is not None:
-                    self.current_text += display_text
-                    self.text_queue.put(display_text)
-                else:
+                # Process through Phi-3 filter - check if it's a special token to filter
+                if is_phi3_special_token(token_text):
                     # Token was filtered (special token)
                     if self.metrics_callback:
                         self.metrics_callback("special_tokens_filtered", 1)
+                else:
+                    # Display the token
+                    self.current_text += token_text
+                    self.text_queue.put(token_text)
                     
             else:
                 # Fallback filtering
@@ -121,9 +114,8 @@ class EnhancedLLMStreamer(ov_genai.StreamerBase):
     def _is_special_token_text(self, text: str) -> bool:
         """Basic special token detection for fallback"""
         special_patterns = [
-            '<|im_start|>', '<|im_end|>', '<|endoftext|>',
-            '<think>', '</think>', '<tool_call>', '</tool_call>',
-            '<|system|>', '<|user|>', '<|assistant|>'
+            '<|endoftext|>', '<|system|>', '<|user|>', '<|assistant|>', '<|end|>',
+            '<think>', '</think>', '<tool_call>', '</tool_call>'
         ]
         
         for pattern in special_patterns:
@@ -151,10 +143,6 @@ class EnhancedLLMStreamer(ov_genai.StreamerBase):
         print(f"🚀 Generation complete: {self.tokens_generated} tokens in {total_time:.2f}s")
         print(f"   First token: {first_token_latency:.3f}s, Speed: {tokens_per_second:.1f} tok/s")
         
-        if ENHANCED_CONTEXT_AVAILABLE and self.token_filter:
-            thinking_content = self.token_filter.get_thinking_content()
-            if thinking_content.strip():
-                print(f"🧠 Model thinking: {thinking_content[:100]}...")
         
         # Signal end of generation
         self.text_queue.put(None)

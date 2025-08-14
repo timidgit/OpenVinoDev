@@ -17,8 +17,11 @@
       "Bash(set QWEN3_MODEL_PATH=)",
       "Bash(git add:*)",
       "Bash(dir:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(echo:*)",
+      "Bash(move:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   }
 }

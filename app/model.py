@@ -45,26 +45,19 @@ except ImportError as e:
     hints = MockHints()
     props = MockProps()
 
-# Import enhanced context patterns
-import sys
-context_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "context")
-sys.path.insert(0, context_path)
-
-# Import Qwen3-specific optimizations
+# Import Phi-3 NPU optimization patterns
 try:
-    from qwen3_model_context.npu_optimization import (
-        Qwen3NPUConfigBuilder, 
-        Qwen3NPUDeployment,
-        QWEN3_NPU_PROFILES
-    )
-    from qwen3_model_context.model_architecture import (
-        QWEN3_8B_ARCHITECTURE,
-        initialize_qwen3_pipeline
+    from .npu_patterns import (
+        get_npu_config_balanced,
+        get_npu_config_conservative, 
+        get_npu_config_aggressive,
+        initialize_phi3_pipeline,
+        PHI3_SPECIAL_TOKENS
     )
     ENHANCED_CONTEXT_AVAILABLE = True
-    print("✅ Enhanced NPU context loaded successfully")
+    print("✅ Enhanced Phi-3 NPU context loaded successfully")
 except ImportError as e:
-    print(f"⚠️ Enhanced context not available: {e}")
+    print(f"⚠️ Enhanced Phi-3 context not available: {e}")
     print("📝 Using fallback patterns - consider updating context path")
     ENHANCED_CONTEXT_AVAILABLE = False
 
@@ -76,7 +69,7 @@ ConfigDict = dict[str, Any]
 
 
 class LLMConfigurationManager:
-    """Advanced configuration management with model-specific optimization (Phi-3 compatible)"""
+    """Advanced configuration management with Phi-3 optimization"""
     
     def __init__(self, profile: ProfileType = "balanced") -> None:
         """
@@ -86,10 +79,7 @@ class LLMConfigurationManager:
             profile: NPU optimization profile (conservative, balanced, aggressive)
         """
         self.profile = profile
-        self.config_builder: Any = None
-        
-        if ENHANCED_CONTEXT_AVAILABLE:
-            self.config_builder = Qwen3NPUConfigBuilder(profile)
+        self.enhanced_available = ENHANCED_CONTEXT_AVAILABLE
     
     def get_npu_config(self) -> ConfigDict:
         """
@@ -98,9 +88,16 @@ class LLMConfigurationManager:
         Returns:
             Dictionary containing NPU-specific configuration parameters
         """
-        if ENHANCED_CONTEXT_AVAILABLE and self.config_builder:
-            # Use enhanced Qwen3-specific configuration
-            return self.config_builder.build_complete_config()
+        if ENHANCED_CONTEXT_AVAILABLE:
+            # Use enhanced Phi-3-specific configuration
+            if self.profile == "conservative":
+                return get_npu_config_conservative()
+            elif self.profile == "balanced":
+                return get_npu_config_balanced()
+            elif self.profile == "aggressive":
+                return get_npu_config_aggressive()
+            else:
+                return get_npu_config_balanced()  # Default fallback
         else:
             # Fallback configuration optimized for Phi-3 128k context
             config = {
@@ -111,8 +108,8 @@ class LLMConfigurationManager:
                 "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
                 "NPUW_LLM_MIN_RESPONSE_LEN": 512,  # Increased for better responses
                 "CACHE_MODE": "OPTIMIZE_SPEED",
-                "NPUW_LLM_PREFILL_HINT": "BEST_PERF",
-                "NPUW_LLM_GENERATE_HINT": "BEST_PERF"
+                "NPUW_LLM_PREFILL_HINT": "LATENCY",
+                "NPUW_LLM_GENERATE_HINT": "LATENCY"
             }
             
             # Add OpenVINO properties if available (no generic PERFORMANCE_HINT for NPU)
@@ -135,8 +132,13 @@ class LLMConfigurationManager:
         Returns:
             Dictionary containing CPU-specific configuration parameters
         """
-        if ENHANCED_CONTEXT_AVAILABLE and self.config_builder:
-            return self.config_builder.build_complete_config()
+        if ENHANCED_CONTEXT_AVAILABLE:
+            # Use Phi-3 optimized CPU configuration
+            return {
+                "MAX_PROMPT_LEN": 32768,  # Use Phi-3's 128k context capability
+                "MIN_RESPONSE_LEN": 512,
+                "CACHE_DIR": get_config().get("deployment", "cache_directory", "./cache/.ovcache_phi3") + "_cpu"
+            }
         else:
             config = {
                 "MAX_PROMPT_LEN": 16384,  # Much larger context for Phi-3 on CPU
@@ -187,9 +189,8 @@ def deploy_llm_pipeline(
     if ENHANCED_CONTEXT_AVAILABLE:
         print(f"🚀 Deploying Phi-3 with enhanced NPU context (profile: {profile})")
         
-        # Use enhanced deployment (NPU optimization patterns from context)
-        deployment = Qwen3NPUDeployment(model_path, profile)
-        pipeline = deployment.deploy()
+        # Use enhanced Phi-3 deployment with NPU patterns
+        pipeline = initialize_phi3_pipeline(model_path, target_device, profile)
         
         if pipeline:
             load_time = time.time() - load_start_time
@@ -233,8 +234,8 @@ def deploy_llm_pipeline(
             print(f"🔄 Trying {device} with {config_name} configuration...")
             
             if ENHANCED_CONTEXT_AVAILABLE:
-                # Use enhanced initialization if available
-                pipeline = initialize_qwen3_pipeline(model_path, device, **config)
+                # Use enhanced Phi-3 initialization if available
+                pipeline = initialize_phi3_pipeline(model_path, device, profile, **config)
             else:
                 # Fallback initialization
                 if config:
@@ -362,8 +363,7 @@ def initialize_system_with_validation():
         print(f"   Model Path: {model_path}")
         print(f"   Tokenizer: {tokenizer.__class__.__name__}")
         if ENHANCED_CONTEXT_AVAILABLE:
-            from qwen3_model_context.special_tokens import QWEN3_SPECIAL_TOKENS
-            print(f"   Special Tokens: {len(QWEN3_SPECIAL_TOKENS)} special tokens available (NPU context)")
+            print(f"   Special Tokens: {len(PHI3_SPECIAL_TOKENS)} Phi-3 special tokens available")
         print("=" * 60)
         
         return pipeline, tokenizer, device_used, config_used, load_time

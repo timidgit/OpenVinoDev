@@ -63,7 +63,7 @@ class ConfigurationLoader:
                 "target_device": "NPU",
                 "npu_profile": "balanced",
                 "fallback_device": "CPU",
-                "cache_directory": "./cache/.ovcache_qwen3"
+                "cache_directory": "./cache/.ovcache_phi3"
             },
             "generation": {
                 "max_new_tokens": 1024,
@@ -101,8 +101,8 @@ class ConfigurationLoader:
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides"""
         env_mappings = {
-            "QWEN3_MODEL_PATH": ("model", "path"),  # Backward compatibility
-            "MODEL_PATH": ("model", "path"),        # Generic name for any model
+            "MODEL_PATH": ("model", "path"),        # Primary model path variable
+            "QWEN3_MODEL_PATH": ("model", "path"),  # Legacy compatibility (deprecated)
             "TARGET_DEVICE": ("deployment", "target_device"),
             "NPU_PROFILE": ("deployment", "npu_profile"),
             "CACHE_DIR": ("deployment", "cache_directory"),
@@ -122,7 +122,10 @@ class ConfigurationLoader:
                     value = value.lower() in ('true', '1', 'yes', 'on')
                 
                 self._config[section][key] = value
-                print(f"🔧 Environment override: {env_var} = {value}")
+                if env_var == "QWEN3_MODEL_PATH":
+                    print(f"⚠️ Legacy environment variable: {env_var} = {value} (use MODEL_PATH instead)")
+                else:
+                    print(f"🔧 Environment override: {env_var} = {value}")
     
     def update_from_args(self, args) -> None:
         """

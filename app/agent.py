@@ -363,8 +363,8 @@ Always think step by step and use tools when they can help provide accurate info
                 self.llm.start_chat(self.system_prompt)
                 
                 # Generate response
-                from .chat import create_qwen3_generation_config
-                gen_config = create_qwen3_generation_config(generation_params)
+                from .chat import create_phi3_generation_config
+                gen_config = create_phi3_generation_config(generation_params)
                 
                 response = ""
                 for chunk in self.llm.generate(full_context, gen_config):
