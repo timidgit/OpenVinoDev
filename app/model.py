@@ -100,6 +100,7 @@ class LLMConfigurationManager:
                 return get_npu_config_balanced()  # Default fallback
         else:
             # Fallback configuration optimized for Phi-3 128k context
+            # Critical: Use correct NPUW hints to prevent compilation errors
             config = {
                 "NPU_USE_NPUW": "YES",
                 "NPUW_LLM": "YES", 
@@ -108,8 +109,8 @@ class LLMConfigurationManager:
                 "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
                 "NPUW_LLM_MIN_RESPONSE_LEN": 512,  # Increased for better responses
                 "CACHE_MODE": "OPTIMIZE_SPEED",
-                "NPUW_LLM_PREFILL_HINT": "LATENCY",
-                "NPUW_LLM_GENERATE_HINT": "LATENCY"
+                "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",  # Corrected: FAST_COMPILE for stable compilation
+                "NPUW_LLM_GENERATE_HINT": "BEST_PERF"     # Corrected: BEST_PERF for optimal generation
             }
             
             # Add OpenVINO properties if available (no generic PERFORMANCE_HINT for NPU)

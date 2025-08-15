@@ -1,0 +1,30 @@
+# Enhanced Phi-3 OpenVINO GenAI Chat Application
+# RAG Dependencies (Optional)
+# 
+# Install these for advanced document processing and agentic capabilities:
+# pip install -r requirements-rag.txt
+
+# Core RAG Dependencies
+langchain>=0.1.0
+langchain-huggingface>=0.1.0  # New recommended package for HuggingFace integrations
+faiss-cpu>=1.7.4
+sentence-transformers>=2.7.0  # Unified version for embeddings and reranking
+
+# Advanced Document Parsing (Phase 3.1)
+unstructured[local-inference]==0.15.7
+langchain-unstructured==0.1.2
+
+# Cross-Encoder Reranking (Phase 3.2)
+torch>=2.0.0  # Required for sentence-transformers models
+
+# Agentic Architecture (Phase 3.3)
+langchain-core>=0.1.0
+langchain-experimental>=0.3.0
+requests>=2.25.0  # For web search tool
+python-dateutil>=2.8.0  # For date/time tools
+
+# Note: These dependencies are optional but provide enhanced functionality:
+# - Document upload and processing for RAG
+# - Cross-encoder reranking for better retrieval quality
+# - Agent capabilities with tool usage
+# - Support for multiple document formats (PDF, DOCX, etc.)

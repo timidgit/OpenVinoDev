@@ -66,15 +66,14 @@ safety check
 
 ### **Installation**
 ```bash
-# Core dependencies (required)
+# Core dependencies (required) - streamlined for new users
 pip install -r requirements.txt
 
-# RAG capabilities (optional but recommended)
-pip install langchain faiss-cpu sentence-transformers
-
-# Agent capabilities (optional)
-pip install langchain-core langchain-experimental requests python-dateutil
+# Advanced RAG capabilities (optional) - heavy dependencies separated
+pip install -r requirements-rag.txt
 ```
+
+**Note**: The dependency structure has been refactored to separate core functionality from heavy optional dependencies. `requirements.txt` now contains only essential packages, while `requirements-rag.txt` contains langchain, torch, and other heavy dependencies for advanced features.
 
 ## **Critical Architecture Patterns**
 
@@ -195,6 +194,11 @@ python main.py --device NPU     # Test NPU compilation and execution
 
 # Configuration testing
 python main.py --model-path "path" --debug  # Test custom model loading
+
+# Unit tests (new test suite)
+pytest tests/ -v                              # Run all tests
+pytest tests/test_streaming_format.py -v     # Test Gradio streaming compliance
+pytest -k "test_message_format" -v           # Run specific test pattern
 ```
 
 ### **Error Handling Architecture**
@@ -217,9 +221,17 @@ The codebase implements multi-tier error handling:
 **Root Cause**: Generic `PERFORMANCE_HINT` conflicts with NPUW-specific hints
 **Solution**: Use only NPUW-specific hints (`FAST_COMPILE`, `BEST_PERF`) with NPU device
 
-### **History Format Normalization**
-**Problem**: Inconsistent message format handling between different Gradio versions
-**Solution**: Bulletproof `prepare_chat_input()` function that explicitly rebuilds history on every turn
+### **Dependency Management Optimization (RESOLVED)**
+**Problem**: Heavy dependencies (torch, langchain) punishing new users with slow installs
+**Root Cause**: All dependencies bundled together regardless of feature usage
+**Solution**: Split into `requirements.txt` (core) and `requirements-rag.txt` (optional heavy deps)
+**Impact**: New users get fast basic setup, advanced users can opt-in to RAG features
+
+### **Legacy Function Deprecation Pattern**
+**Problem**: Qwen3 naming convention causing confusion in Phi-3 codebase
+**Root Cause**: Model migration preserved legacy naming for backward compatibility  
+**Solution**: Added deprecation shim in `app/__init__.py` with `DeprecationWarning` guidance
+**Pattern**: `enhanced_qwen3_chat()` → wrapper → `enhanced_llm_chat()` (modern API)
 
 ## **Quality Gates & Production Readiness**
 
@@ -235,12 +247,18 @@ A feature is production-ready when:
 
 ## **Critical Technical Debt & Legacy Naming**
 
-**Note**: Some function/class names retain legacy "qwen3" naming for backward compatibility:
-- `enhanced_qwen3_chat()` → processes Phi-3 model
+**Deprecation Strategy**: The codebase implements a professional deprecation pattern for legacy naming:
+
+**Active Deprecation Shims** (in `app/__init__.py`):
+- `enhanced_qwen3_chat()` → wrapper with `DeprecationWarning` → `enhanced_llm_chat()`
+- Issues clear guidance: "Use enhanced_llm_chat instead. Will be removed in v3.0.0"
+
+**Legacy Names Still Present** (intentionally preserved):
 - `EnhancedQwen3Streamer()` → handles Phi-3 token streaming  
 - `deploy_qwen3_pipeline()` → deploys Phi-3 pipeline
+- Various internal references in comments and variable names
 
-This naming is intentionally preserved to maintain configuration compatibility and reduce breaking changes during the model transition.
+**Migration Guidance**: When working with legacy code, prefer modern APIs but respect backward compatibility. The deprecation warnings guide users toward current best practices while maintaining system stability.
 
 ## **Archive System**
 
@@ -251,3 +269,22 @@ The `_context_archive/` directory demonstrates professional technical debt manag
 - **Docker configs**: Containerization examples for different deployment scenarios
 
 This approach enables safe architectural evolution while preserving institutional knowledge.
+
+## **Context File Generation**
+
+The project includes an enhanced context generation system for external LLM analysis:
+
+```bash
+# Generate comprehensive context file for external LLMs
+python create_context.py
+
+# Generate and open for inspection  
+python create_context.py --open
+```
+
+**Enhanced Features**:
+- Categorized file organization with purpose descriptions
+- Architecture diagrams and critical constraint documentation
+- Recent debugging insights and fix patterns included
+- Optimized structure for external LLM comprehension
+- Comprehensive project metadata and statistics

@@ -36,7 +36,34 @@ A production-ready, modular implementation of microsoft/Phi-3-mini-128k-instruct
 - **Professional error handling** with detailed diagnostics
 - **Comprehensive logging** and debugging capabilities
 
-## 🛠️ Installation
+## 🚀 Quick Start
+
+**New users start here!** Get up and running in 5 minutes:
+
+1. **Install core dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Set your model path**
+   ```bash
+   export MODEL_PATH="/path/to/your/phi3-128k-npu"
+   # or set in config.json
+   ```
+
+3. **Run the application**
+   ```bash
+   python main.py
+   ```
+
+4. **Open your browser** to `http://127.0.0.1:7860`
+
+**For advanced features** (document upload, RAG processing), also install:
+```bash
+pip install -r requirements-rag.txt
+```
+
+## 🛠️ Complete Installation Guide
 
 ### Prerequisites
 - **Python 3.8+**
@@ -54,7 +81,11 @@ cd OpenVinoDev
 
 2. **Install dependencies**
 ```bash
+# Core dependencies (required)
 pip install -r requirements.txt
+
+# RAG and advanced features (optional)
+pip install -r requirements-rag.txt
 ```
 
 3. **Set up OpenVINO environment**
@@ -103,23 +134,25 @@ python main.py
 - **Memory**: 8GB+ RAM for optimal performance
 
 ### Software
-**Core Dependencies:**
+**Core Dependencies** (in `requirements.txt`):
 ```
 openvino-genai>=2024.4
 gradio>=4.0.0
 transformers>=4.30.0
 numpy>=1.21.0
 typing-extensions>=4.0.0
+psutil>=5.8.0
 ```
 
-**RAG Dependencies (Optional):**
+**RAG Dependencies** (optional, in `requirements-rag.txt`):
 ```
 langchain>=0.1.0
 faiss-cpu>=1.7.4
-sentence-transformers>=2.2.0
+sentence-transformers>=2.7.0
+torch>=2.0.0
 ```
 
-See `requirements.txt` for complete dependencies.
+**Installation**: Install core dependencies with `pip install -r requirements.txt`. For advanced features, also install `pip install -r requirements-rag.txt`.
 
 ## 🚀 Usage
 
@@ -160,6 +193,28 @@ export MAX_MESSAGE_LENGTH="2000"              # Max input length (increased for 
 - **Conservative**: Lower memory usage, smaller contexts
 - **Balanced**: Optimal for most use cases (default)
 - **Aggressive**: Maximum performance, higher memory usage
+
+## ⚡ Long Context on NPU
+
+**Important**: While Phi-3 supports 128k context length, **Intel NPU has hardware limitations**:
+
+- **NPU Context Limit**: ~8,192 tokens (hardware constraint)
+- **Full 128k Context**: Available on CPU device only
+- **Automatic Fallback**: Long conversations automatically switch to CPU
+
+**Best Practices:**
+```bash
+# For long documents/conversations, use CPU explicitly
+python main.py --device CPU
+
+# For quick interactions, NPU provides faster response
+python main.py --device NPU  # Default behavior
+```
+
+**Context Management:**
+- NPU: Ideal for < 6k token conversations (~15-20 exchanges)
+- CPU: Required for full 128k context utilization
+- Auto-truncation prevents NPU overflows with user warnings
 
 ## 🏗️ Architecture
 
@@ -220,8 +275,8 @@ npu_config = {
     "NPUW_LLM": "YES", 
     "NPUW_LLM_MAX_PROMPT_LEN": 8192,  # Increased for Phi-3 128k context
     "NPUW_LLM_MIN_RESPONSE_LEN": 256,
-    "NPUW_LLM_PREFILL_HINT": "LATENCY",
-    "NPUW_LLM_GENERATE_HINT": "LATENCY"
+    "NPUW_LLM_PREFILL_HINT": "FAST_COMPILE",  # Corrected: FAST_COMPILE for stable compilation
+    "NPUW_LLM_GENERATE_HINT": "BEST_PERF"     # Corrected: BEST_PERF for optimal generation
 }
 ```
 

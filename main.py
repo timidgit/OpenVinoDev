@@ -31,6 +31,11 @@ from typing import Optional
 
 # Import application modules
 from app.config import initialize_config
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration validation fails."""
+    pass
 from app.model import initialize_system_with_validation
 from app.chat import initialize_globals as init_chat_globals
 from app.ui import create_enhanced_interface, initialize_ui_globals
@@ -181,12 +186,11 @@ def validate_arguments(args: argparse.Namespace) -> None:
         args: Parsed command-line arguments
         
     Raises:
-        SystemExit: If validation fails
+        ConfigurationError: If validation fails
     """
     # Validate model path if provided
     if args.model_path and not os.path.exists(args.model_path):
-        print(f"❌ Error: Model path does not exist: {args.model_path}")
-        sys.exit(1)
+        raise ConfigurationError(f"Model path does not exist: {args.model_path}")
     
     # Validate cache directory if provided
     if args.cache_dir:
@@ -195,20 +199,17 @@ def validate_arguments(args: argparse.Namespace) -> None:
             try:
                 os.makedirs(cache_parent, exist_ok=True)
             except (PermissionError, OSError) as e:
-                print(f"❌ Error: Cannot create cache directory parent: {cache_parent} ({e})")
-                sys.exit(1)
+                raise ConfigurationError(f"Cannot create cache directory parent: {cache_parent} ({e})")
     
     # Validate authentication format
     if args.auth and ':' not in args.auth:
-        print("❌ Error: Authentication must be in format 'username:password'")
-        sys.exit(1)
+        raise ConfigurationError("Authentication must be in format 'username:password'")
     
     # Validate port range
     if not (1024 <= args.port <= 65535):
-        print(f"❌ Error: Port must be between 1024 and 65535, got {args.port}")
-        sys.exit(1)
+        raise ConfigurationError(f"Port must be between 1024 and 65535, got {args.port}")
     
-    # Warn about security risks
+    # Warn about security risks (these are warnings, not errors)
     if args.share:
         print("⚠️ WARNING: Public sharing enabled. Your application will be accessible from the internet.")
         print("   Ensure you trust all users who might access it.")
@@ -253,8 +254,12 @@ def main():
     parser = create_argument_parser()
     args = parser.parse_args()
     
-    # Validate arguments
-    validate_arguments(args)
+    try:
+        # Validate arguments
+        validate_arguments(args)
+    except ConfigurationError as e:
+        print(f"❌ Configuration Error: {e}")
+        sys.exit(1)
     
     # Setup debug logging if requested
     if args.debug:
