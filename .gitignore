@@ -50,6 +50,13 @@ cache/
 *.cache
 temp/
 
+# Exclude model directories but allow selective inclusion of config files
+phi3-128k-npu-fixed/
+!phi3-128k-npu-fixed/*.json
+!phi3-128k-npu-fixed/*.py
+!phi3-128k-npu-fixed/*.jinja
+!phi3-128k-npu-fixed/*.xml
+
 # Logs and Metrics
 *.log
 logs/

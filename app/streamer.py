@@ -61,54 +61,38 @@ class EnhancedLLMStreamer(ov_genai.StreamerBase):
             print("⚠️ Using basic token filtering")
     
     def put(self, token_id: int) -> bool:
-        """Process token with Phi-3-specific filtering"""
+        """Process token with robust decoding and Phi-3-specific filtering"""
         self.accumulated_tokens.append(token_id)
         self.tokens_generated += 1
-        
+
         # Record first token latency
         if self.first_token_time is None:
             self.first_token_time = time.time()
-        
+
         try:
-            # Decode with special token handling
-            if self.use_phi3_filtering:
-                # Use enhanced Phi-3 filtering
-                try:
-                    token_text = self.tokenizer.decode([token_id], skip_special_tokens=False)
-                except:
-                    token_text = f"[UNK_{token_id}]"
-                
-                # Process through Phi-3 filter - check if it's a special token to filter
-                if is_phi3_special_token(token_text):
-                    # Token was filtered (special token)
+            # CORRECT: Decode the full sequence of tokens to handle multi-byte characters.
+            full_text = self.tokenizer.decode(self.accumulated_tokens, skip_special_tokens=False)
+
+            # Find the newly generated text by comparing with the previous state
+            if len(full_text) > len(self.current_text):
+                new_text = full_text[len(self.current_text):]
+
+                # Now, check if the newly decoded chunk is a special token
+                if self.use_phi3_filtering and is_phi3_special_token(new_text.strip()):
+                    # It's a special token. Filter it by not sending it to the queue.
                     if self.metrics_callback:
                         self.metrics_callback("special_tokens_filtered", 1)
                 else:
-                    # Display the token
-                    self.current_text += token_text
-                    self.text_queue.put(token_text)
-                    
-            else:
-                # Fallback filtering
-                try:
-                    # Decode incrementally
-                    full_text = self.tokenizer.decode(self.accumulated_tokens, skip_special_tokens=True)
-                    
-                    if len(full_text) > len(self.current_text):
-                        new_text = full_text[len(self.current_text):]
-                        self.current_text = full_text
-                        
-                        # Basic special token filtering
-                        if not self._is_special_token_text(new_text):
-                            self.text_queue.put(new_text)
-                except Exception as e:
-                    print(f"⚠️ Decoding error: {e}")
-                    return False
-                    
+                    # It's a valid text chunk. Send it to the UI.
+                    self.text_queue.put(new_text)
+
+                # In either case, update the current full text state.
+                self.current_text = full_text
+
         except Exception as e:
             print(f"❌ Token processing error: {e}")
             return False
-        
+
         return False  # Continue generation
     
     def _is_special_token_text(self, text: str) -> bool:

@@ -1,6 +1,6 @@
 {
   "model": {
-    "path": "C:\\OpenVinoModels\\phi3-128k-npu",
+    "path": "C:\\Users\\sbran\\OneDrive\\Desktop\\OpenVinoDev\\phi3-128k-npu-fixed",
     "name": "Phi-3-mini-128k-instruct",
     "type": "phi3"
   },

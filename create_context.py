@@ -28,9 +28,17 @@ def create_context_file():
         ("streamer.py", "app"),
         ("chat.py", "app"),
         ("ui.py", "app"),
+        ("__init__.py", "app"),
+        ("agent.py", "app"),
         ("check_model_config.py", "."),
         ("export_model_for_npu.py", "."),
-        ("agent.py", "app")
+        ("test_chat_format.py", "."),
+        ("test_minimal_gradio.py", "."), 
+        ("test_simple_chat.py", "."),
+        ("config.example.json", "_context_archive"),
+        ("pytest.ini", "_context_archive"),
+        ("test_config.py", "_context_archive/tests"),
+        ("config.json", "phi3-128k-npu-fixed")
     ]
     
     # Remove existing output file if it exists
